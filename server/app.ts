@@ -117,7 +117,7 @@ export async function createApp(options: AppOptions): Promise<{ app: Express; ct
         next(new HttpError(429, 'Too many requests. Please slow down and try again shortly.', { code: 'rate_limited' })),
     }),
   );
-  // For uptime monitors and container health checks.
+  // For uptime monitors.
   api.get('/health', (_req, res) => {
     res.json({ ok: true });
   });

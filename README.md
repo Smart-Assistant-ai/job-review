@@ -219,7 +219,81 @@ Changing `ADMIN_PASSWORD` or `SESSION_SECRET` signs every administrator out.
 
 ## Deploy to a server
 
+### Simplest: one pm2 process behind your web server
+
+The backend serves the site and the API together under the sub-folder, so the web server needs a single forwarding rule and nothing has to be uploaded separately. This is the layout for `https://dev.aiassistant.co/job-applicants-review` with the app on port `8799`.
+
+Needs Node.js 20.19 or newer (22 recommended) and pm2 on the server.
+
+**1. Get the code and settings onto the server.**
+
+```bash
+git clone https://github.com/Smart-Assistant-ai/job-review.git && cd job-review
+```
+
+Put your settings in a file named `.env` in that folder (see [Environment variables](#environment-variables)), with at least:
+
+```
+APP_BASE_URL=https://dev.aiassistant.co/job-applicants-review
+PORT=8799
+VITE_BASE_PATH=job-applicants-review
+VITE_BASE_API_URL=
+TRUST_PROXY=1
+```
+
+```bash
+chmod 600 .env
+```
+
+**2. Install, build and start.**
+
+```bash
+npm ci && npm run build
+```
+
+Run this from inside the project folder, so the app finds its `.env`:
+
+```bash
+pm2 start dist/server.js --name job-applicants-review && pm2 save
+```
+
+The built server runs in production mode by default. Keep it to a single instance (no `-i`): rate limits, duplicate-submission locks and download progress live in memory.
+
+Check it: `curl http://127.0.0.1:8799/job-applicants-review/api/health` should print `{"ok":true}`, and `pm2 logs job-applicants-review` should show "Storage is ready."
+
+**3. Forward the sub-folder from the web server.** In the nginx `server` block for the domain (the one with `listen 443 ssl`):
+
+```nginx
+location /job-applicants-review/ {
+    proxy_pass http://127.0.0.1:8799;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    client_max_body_size 6m;          # slightly above MAX_RESUME_SIZE_MB
+    proxy_buffering off;              # let large ZIP downloads stream
+    proxy_read_timeout 900s;
+}
+```
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Apache equivalent: `ProxyPass /job-applicants-review/ http://127.0.0.1:8799/job-applicants-review/` with a matching `ProxyPassReverse`, plus `RequestHeader set X-Forwarded-Proto "https"`.
+
+Port 8799 does not need to be opened to the internet in this layout.
+
+**Updating later:**
+
+```bash
+git pull && npm ci && npm run build && pm2 reload job-applicants-review
+```
+
+After changing `.env` only, `pm2 reload job-applicants-review` is enough, unless you changed a `VITE_` setting, which needs the build again.
+
 ### Site in a sub-folder, backend on its own port
+
+Use this instead if the site's files must be hosted separately from the backend, with browsers calling the backend port directly.
 
 This is the layout for `https://dev.aiassistant.co/job-applicants-review` with the backend on port `8799` of the same domain.
 
@@ -292,15 +366,7 @@ When a web server forwards requests to the backend, set `TRUST_PROXY=1`. `X-Forw
 
 ### Everything from one process
 
-With `VITE_BASE_PATH` and `VITE_BASE_API_URL` empty and `APP_BASE_URL` set to the site's own address, `npm run build && npm start` serves the site and the API together on `PORT`. Put a reverse proxy with HTTPS in front of it. A `Dockerfile` for this arrangement is included:
-
-```bash
-docker build -t job-review .
-```
-
-```bash
-docker run -d --name job-review --restart unless-stopped --env-file .env -p 127.0.0.1:3000:3000 job-review
-```
+With `VITE_BASE_PATH` and `VITE_BASE_API_URL` empty and `APP_BASE_URL` set to the site's own address, `npm run build && npm start` serves the site and the API together on `PORT` at the root of a domain. Put a reverse proxy with HTTPS in front of it.
 
 ### Production checklist
 

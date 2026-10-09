@@ -1,0 +1,8 @@
+# Apache: send every page address to the React app so links such as
+# /apply/<job id> work when opened directly or refreshed.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . index.html [L]
+</IfModule>

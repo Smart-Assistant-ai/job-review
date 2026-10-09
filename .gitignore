@@ -1,0 +1,21 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Secrets and local configuration. None of this may ever be committed.
+.env
+.env.*
+!.env.example
+secrets/
+*service-account*.json
+*service_account*.json
+client_secret*.json
+*.pem
+*.key
+
+# Local stand-in storage used for development and tests
+.data/
+.data-*/
+
+.DS_Store
+npm-debug.log*

@@ -9,9 +9,10 @@ export function HomePage() {
 
   return (
     <PublicShell companyName={data?.companyName ?? 'Careers'}>
-      <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Open positions</h1>
-        <p className="mt-1 text-sm text-slate-600">Choose a role to read the details and apply.</p>
+      <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+        <p className="text-sm font-medium text-brand-700">Join {data?.companyName ?? 'us'}</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">Open positions</h1>
+        <p className="mt-2 text-sm text-slate-600">Choose a role to read the details and apply. It takes about three minutes.</p>
 
         <div className="mt-6">
           {error ? (
@@ -23,15 +24,16 @@ export function HomePage() {
               {data.jobs.map((job) => (
                 <li key={job.id}>
                   <Link to={`/apply/${job.id}`} className="group block">
-                    <Card className="flex items-center justify-between gap-4 px-5 py-4 transition-colors group-hover:border-brand-300">
-                      <div className="min-w-0">
-                        <p className="font-medium text-slate-900">{job.title}</p>
-                        {job.experienceCriteria && (
-                          <p className="mt-0.5 text-sm text-slate-500">Experience: {job.experienceCriteria}</p>
-                        )}
+                    <Card className="flex items-center gap-4 px-5 py-4 transition-all group-hover:border-brand-300 group-hover:shadow-md">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+                        <Icon name="briefcase" className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-slate-900">{job.title}</p>
+                        {job.experienceCriteria && <p className="mt-0.5 truncate text-sm text-slate-500">{job.experienceCriteria}</p>}
                       </div>
-                      <span className="flex items-center gap-1 text-sm font-medium text-brand-700">
-                        Apply <Icon name="right" />
+                      <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-brand-700">
+                        Apply <Icon name="arrowRight" className="transition-transform group-hover:translate-x-0.5" />
                       </span>
                     </Card>
                   </Link>

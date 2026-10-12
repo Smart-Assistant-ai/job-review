@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect } from 'react';
-import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import type { SessionResponse } from '../../shared/types';
 import { api, AUTH_EXPIRED_EVENT } from '../lib/api';
 import { useApi } from '../lib/useApi';
 import { DownloadsProvider } from './Downloads';
-import { Alert, Button, cx, PageLoading } from './ui';
+import { Alert, Button, buttonClass, cx, Icon, LogoMark, PageLoading, ToastProvider } from './ui';
 
 const SessionContext = createContext<SessionResponse | null>(null);
 
@@ -15,7 +15,7 @@ export function useSession(): SessionResponse {
 }
 
 const NAV = [
-  { to: '/admin', label: 'Jobs', isActive: (path: string) => path === '/admin' || path.startsWith('/admin/jobs') },
+  { to: '/admin', label: 'Dashboard', isActive: (path: string) => path === '/admin' || path.startsWith('/admin/jobs') },
   { to: '/admin/applications', label: 'Candidates', isActive: (path: string) => path.startsWith('/admin/applications') },
 ];
 
@@ -36,7 +36,7 @@ export function AdminLayout() {
   }, [navigate, loginUrl]);
 
   useEffect(() => {
-    if (session) document.title = `Recruitment – ${session.companyName}`;
+    if (session) document.title = `Hiring – ${session.companyName}`;
   }, [session]);
 
   if (error && !session) {
@@ -59,46 +59,57 @@ export function AdminLayout() {
 
   return (
     <SessionContext.Provider value={session}>
-      <DownloadsProvider>
-        <div className="min-h-screen">
-          <header className="border-b border-slate-200 bg-white">
-            <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4 sm:px-6">
-              <Link to="/admin" className="shrink-0 text-base font-semibold tracking-tight text-slate-900">
-                {session.companyName}
-                <span className="ml-2 hidden font-normal text-slate-500 sm:inline">Recruitment</span>
-              </Link>
-              <nav className="flex h-full items-stretch gap-1" aria-label="Admin">
-                {NAV.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    aria-current={item.isActive(location.pathname) ? 'page' : undefined}
-                    className={cx(
-                      'flex items-center border-b-2 px-3 text-sm font-medium',
-                      item.isActive(location.pathname) ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600 hover:text-slate-900',
-                    )}
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
-              </nav>
-              <div className="ml-auto">
-                <Button size="sm" variant="ghost" onClick={signOut}>
-                  Sign out
-                </Button>
+      <ToastProvider>
+        <DownloadsProvider>
+          <div className="min-h-screen">
+            <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+              <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-4 sm:gap-6 sm:px-6">
+                <Link to="/admin" className="flex shrink-0 items-center gap-2.5">
+                  <LogoMark name={session.companyName} />
+                  <span className="hidden text-[15px] font-semibold tracking-tight text-slate-900 sm:inline">
+                    {session.companyName}
+                  </span>
+                  <span className="hidden text-[15px] text-slate-400 md:inline">Hiring</span>
+                </Link>
+                <nav className="flex h-full items-stretch gap-1" aria-label="Admin">
+                  {NAV.map((item) => {
+                    const active = item.isActive(location.pathname);
+                    return (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        aria-current={active ? 'page' : undefined}
+                        className={cx(
+                          'flex items-center border-b-2 px-3 text-sm font-medium transition-colors',
+                          active ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-600 hover:text-slate-900',
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </nav>
+                <div className="ml-auto flex items-center gap-1.5">
+                  <Link to="/admin/jobs/new" className={buttonClass('primary', 'sm')}>
+                    <Icon name="plus" /> <span className="hidden sm:inline">New job</span>
+                  </Link>
+                  <Button size="sm" variant="ghost" icon="logout" onClick={signOut}>
+                    <span className="hidden sm:inline">Sign out</span>
+                  </Button>
+                </div>
               </div>
-            </div>
-          </header>
-          {session.storage === 'local' && (
-            <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-900">
-              Demo storage is on: data is kept in files on this server, not in Google Sheets or Drive. Connect Google before real use.
-            </div>
-          )}
-          <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-            <Outlet />
-          </main>
-        </div>
-      </DownloadsProvider>
+            </header>
+            {session.storage === 'local' && (
+              <div className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-center text-xs text-amber-900">
+                Demo storage is on: data is kept in files on this server, not in Google Sheets or Drive.
+              </div>
+            )}
+            <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
+              <Outlet />
+            </main>
+          </div>
+        </DownloadsProvider>
+      </ToastProvider>
     </SessionContext.Provider>
   );
 }

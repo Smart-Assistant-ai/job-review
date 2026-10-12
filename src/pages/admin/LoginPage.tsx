@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
 import type { SessionResponse } from '../../../shared/types';
-import { Alert, Button, Card, Field, PageLoading, TextInput } from '../../components/ui';
+import { Alert, Button, Card, Field, LogoMark, PageLoading, TextInput } from '../../components/ui';
 import { api, ApiError } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
 
@@ -20,7 +20,7 @@ export function LoginPage() {
   const next = safeNext(params.get('next'));
 
   useEffect(() => {
-    document.title = `Sign in – ${session?.companyName ?? 'Recruitment'}`;
+    document.title = `Sign in – ${session?.companyName ?? 'Hiring'}`;
   }, [session]);
 
   if (loading && !session) return <PageLoading />;
@@ -40,11 +40,18 @@ export function LoginPage() {
     }
   };
 
+  const company = session?.companyName ?? 'Hiring';
+
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
+      <div className="mb-6 flex items-center gap-2.5">
+        <LogoMark name={company} />
+        <span className="text-lg font-semibold tracking-tight text-slate-900">{company}</span>
+        <span className="text-lg text-slate-400">Hiring</span>
+      </div>
       <Card className="w-full max-w-sm p-6 sm:p-8">
-        <h1 className="text-lg font-semibold text-slate-900">{session?.companyName ?? 'Recruitment'}</h1>
-        <p className="mt-1 text-sm text-slate-600">Sign in to manage jobs and candidates.</p>
+        <h1 className="text-lg font-semibold tracking-tight text-slate-900">Sign in</h1>
+        <p className="mt-1 text-sm text-slate-500">Manage jobs and review candidates.</p>
 
         {session?.loginProblem ? (
           <Alert tone="warning" className="mt-6" title="Sign-in is not set up yet">
@@ -65,12 +72,13 @@ export function LoginPage() {
                 />
               )}
             </Field>
-            <Button type="submit" variant="primary" className="w-full" busy={busy}>
+            <Button type="submit" variant="primary" size="lg" className="w-full" busy={busy}>
               Sign in
             </Button>
           </form>
         )}
       </Card>
+      <p className="mt-6 text-xs text-slate-400">Candidate data stays in your Google Workspace.</p>
     </div>
   );
 }

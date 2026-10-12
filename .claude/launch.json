@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "job-review-demo",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["STORAGE_BACKEND=local", "PORT=3100", "APP_BASE_URL=http://localhost:3100", "npm", "run", "dev"],
+      "port": 3100
     }
   ]
 }

@@ -656,6 +656,41 @@ describe('reviewing candidates', () => {
     expect(asObjects(await app.rawTab('Application Activity')).filter((a) => a['Application ID'] === id)).toHaveLength(3);
   });
 
+  it('reports pipeline counts for the dashboard and for the status tabs', async () => {
+    await start();
+    const cookie = await app.login();
+    const job = await createJob(app, cookie);
+    const other = await createJob(app, cookie, { title: 'Designer', questions: [] });
+    const ids = await seed(app, job, people);
+    const [otherId] = await seed(app, other, [{ fullName: 'Esha Roy', email: 'esha@example.com' }]);
+    await fetch(`${app.baseUrl}/api/admin/applications/bulk-status`, json(cookie, { ids: [ids[0], ids[1]], status: 'Shortlisted' }));
+    await fetch(`${app.baseUrl}/api/admin/applications/${ids[2]}`, json(cookie, { status: 'Rejected' }, 'PATCH'));
+    await fetch(`${app.baseUrl}/api/admin/applications/${otherId}`, json(cookie, { status: 'Under Review' }, 'PATCH'));
+
+    const overview = (await (await fetch(`${app.baseUrl}/api/admin/overview`, get(cookie))).json()) as {
+      jobs: { id: string; counts: Record<string, number> }[];
+      totals: Record<string, number>;
+      recent: { id: string; fullName: string; jobTitle: string; status: string }[];
+    };
+    expect(overview.jobs.find((j) => j.id === job.id)?.counts).toEqual({ total: 4, new: 1, underReview: 0, shortlisted: 2, rejected: 1, hired: 0 });
+    expect(overview.jobs.find((j) => j.id === other.id)?.counts).toEqual({ total: 1, new: 0, underReview: 1, shortlisted: 0, rejected: 0, hired: 0 });
+    expect(overview.totals).toEqual({ total: 5, new: 1, underReview: 1, shortlisted: 2, rejected: 1, hired: 0, activeJobs: 2 });
+    // Newest first, with the job's current title.
+    expect(overview.recent).toHaveLength(5);
+    expect(overview.recent[0]).toMatchObject({ id: otherId, fullName: 'Esha Roy', jobTitle: 'Designer', status: 'Under Review' });
+    expect(Object.keys(overview.recent[0]).sort()).toEqual(['fullName', 'id', 'jobId', 'jobTitle', 'status', 'submittedAt']);
+
+    type Counted = { total: number; statusCounts: Record<string, number> };
+    const counted = async (query: string) => (await (await fetch(`${app.baseUrl}/api/admin/applications?${query}`, get(cookie))).json()) as Counted;
+    expect((await counted('')).statusCounts).toEqual({ all: 5, New: 1, 'Under Review': 1, Shortlisted: 2, Rejected: 1, Hired: 0 });
+    // Choosing a tab narrows the list but not the numbers shown on the other tabs.
+    const shortlisted = await counted(`job=${job.id}&status=Shortlisted`);
+    expect(shortlisted.total).toBe(2);
+    expect(shortlisted.statusCounts).toEqual({ all: 4, New: 1, 'Under Review': 0, Shortlisted: 2, Rejected: 1, Hired: 0 });
+    // Other filters do narrow them.
+    expect((await counted('q=bilal')).statusCounts).toMatchObject({ all: 1, Shortlisted: 1, New: 0 });
+  });
+
   it('rejects unknown statuses, overlong notes and unknown applications', async () => {
     await start();
     const cookie = await app.login();

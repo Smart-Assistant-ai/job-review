@@ -70,6 +70,16 @@ With `STORAGE_BACKEND=local` the app keeps data in files under `.data/` instead 
 npm run seed:demo
 ```
 
+### Frontend only, against a deployed backend
+
+To work on the screens locally while using a backend that is already running on a server:
+
+```bash
+VITE_BASE_API_URL=http://dev.aiassistant.co:8799 npm run dev:client
+```
+
+Open http://localhost:5188. Only the React app runs on your machine; its dev server forwards every API call to the address in `VITE_BASE_API_URL`. Because the browser only ever talks to localhost, sign-in works and the backend needs no special settings for this. You sign in with the **server's** admin password, and what you see and change is the server's real data.
+
 ## Connect Google
 
 The server signs in to Google in one of two ways. Both keep the credentials on the server only.
@@ -382,12 +392,13 @@ With `VITE_BASE_PATH` and `VITE_BASE_API_URL` empty and `APP_BASE_URL` set to th
 
 **Administrators** (`<site address>/admin`)
 
+- **Dashboard:** how many candidates are waiting at each stage (New, In review, Shortlisted, Hired, Rejected), every job with its own pipeline bar, and the latest applications. Each number opens the matching list.
 - **Jobs:** create, edit, publish, close and reopen jobs. Each job has a title, description, responsibilities, requirements, experience criteria and its own application questions (short answer, paragraph, dropdown, yes/no; required or optional).
 - **Application link:** every published job has a unique link such as `https://dev.aiassistant.co/job-applicants-review/apply/k7m2x9q4ab`. Use **Copy link** and paste it into LinkedIn's external application field. The link stays the same when the job is edited.
-- **Candidates:** search by name, email, phone, location, job title, notes or application ID. Filter by job, status, experience, application date and CTC. Sort by any column. 25, 50 or 100 rows per page.
-- **Review:** open a candidate to see every answer, preview a PDF resume in the page, change status (New, Under Review, Shortlisted, Rejected, Hired), and keep internal notes. Status can also be changed straight from the table.
-- **Bulk actions:** tick candidates (or select all that match the filters) to change status together, download their resumes as a ZIP, or export them as CSV.
-- **Downloads:** with a job selected, **All resumes** and **Shortlisted resumes** download a ZIP for that job. **Export CSV** exports whatever the current filters show, including each custom answer as its own column.
+- **Candidates:** status tabs with live counts, search (name, email, phone, location, job title, notes, application ID) and filters for job, experience, application date and CTC. Sort by any column. Candidates not yet reviewed are marked. Hovering a row gives one-click **Shortlist**, **Reject**, resume download and the LinkedIn profile.
+- **Review:** **Review candidates** opens the first person in the current list with the resume beside their details. **Shortlist** and **Reject** are one click, notes save when you click away, and **Previous / Next** follow the same order as the list. Keyboard: `S` shortlist, `R` reject, `←` `→` (or `K` `J`) to move. Tick **Next after decision** to jump to the next candidate automatically.
+- **Bulk actions:** tick candidates (or select all that match the filters) to shortlist, reject or move them together, download their resumes as a ZIP, or export them as CSV.
+- **Export:** the **Export** menu exports the current list as CSV and, with a job selected, downloads all or only shortlisted resumes as a ZIP.
 
 ZIP downloads are prepared in two steps: the dashboard first asks the backend for the selection (so problems such as "nothing matches" appear as a normal message), then the browser fetches the file with a one-time link and saves it with its own download bar. Each ZIP contains a `_download-report.txt` listing how many resumes were included and naming any that could not be (for example a file deleted from Drive).
 

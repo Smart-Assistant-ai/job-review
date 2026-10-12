@@ -181,10 +181,10 @@ function JobForm({ jobId }: { jobId: string | undefined }) {
   return (
     <div className="mx-auto max-w-5xl">
       <Link to="/admin" className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
-        <Icon name="left" /> All jobs
+        <Icon name="left" /> Dashboard
       </Link>
       <div className="mt-2 flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">{editing ? 'Edit job' : 'New job'}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{editing ? job?.title || 'Edit job' : 'New job'}</h1>
         {job && <StatusBadge status={job.status} />}
       </div>
 

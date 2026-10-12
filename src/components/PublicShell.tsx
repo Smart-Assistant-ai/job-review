@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router';
+import { LogoMark } from './ui';
 
 /** Page frame for candidate-facing pages. */
 export function PublicShell({ companyName, title, children }: { companyName: string; title?: string; children: ReactNode }) {
@@ -11,9 +12,10 @@ export function PublicShell({ companyName, title, children }: { companyName: str
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex h-14 max-w-6xl items-center px-4 sm:px-6">
-          <Link to="/" className="text-base font-semibold tracking-tight text-slate-900">
+          <Link to="/" className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight text-slate-900">
+            <LogoMark name={companyName} />
             {companyName}
-            <span className="ml-2 font-normal text-slate-500">Careers</span>
+            <span className="font-normal text-slate-400">Careers</span>
           </Link>
         </div>
       </header>

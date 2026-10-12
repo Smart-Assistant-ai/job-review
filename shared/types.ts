@@ -15,11 +15,17 @@ export interface JobDto {
   updatedAt: string;
 }
 
+/** Number of applications at each stage of the hiring pipeline. */
 export interface JobCounts {
   total: number;
   new: number;
+  underReview: number;
   shortlisted: number;
+  rejected: number;
+  hired: number;
 }
+
+export const EMPTY_COUNTS: JobCounts = { total: 0, new: 0, underReview: 0, shortlisted: 0, rejected: 0, hired: 0 };
 
 export interface JobSummaryDto extends JobDto {
   counts: JobCounts;
@@ -27,9 +33,17 @@ export interface JobSummaryDto extends JobDto {
   applyUrl: string;
 }
 
+export type RecentApplicationDto = Pick<
+  ApplicationDto,
+  'id' | 'fullName' | 'jobId' | 'jobTitle' | 'submittedAt' | 'status'
+>;
+
 export interface OverviewResponse {
   jobs: JobSummaryDto[];
-  totals: { activeJobs: number; applications: number; new: number; shortlisted: number };
+  /** Pipeline totals across every job. */
+  totals: JobCounts & { activeJobs: number };
+  /** The newest applications, most recent first. */
+  recent: RecentApplicationDto[];
 }
 
 export interface PublicJobListItem {
@@ -93,6 +107,11 @@ export interface ApplicationListResponse {
   pageCount: number;
   /** IDs of every application matching the filters, across all pages. */
   allIds: string[];
+  /**
+   * How many applications are at each status for the current filters, ignoring
+   * the status filter itself. Keyed by status name, plus "all".
+   */
+  statusCounts: Record<string, number>;
   jobs: { id: string; title: string; status: JobStatus }[];
 }
 

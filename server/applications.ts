@@ -7,6 +7,7 @@ import {
   type ApplicationStatus,
 } from '../shared/constants';
 import {
+  EMPTY_COUNTS,
   SORT_KEYS,
   type ActivityDto,
   type AnswerDto,
@@ -39,6 +40,15 @@ export interface ApplicationFilters {
   sort: SortKey;
   dir: 'asc' | 'desc';
 }
+
+/** Which pipeline counter each status feeds. */
+const STAGE_BY_STATUS: Record<string, Exclude<keyof JobCounts, 'total'> | undefined> = {
+  New: 'new',
+  'Under Review': 'underReview',
+  Shortlisted: 'shortlisted',
+  Rejected: 'rejected',
+  Hired: 'hired',
+};
 
 function toNumber(value: string): number | null {
   if (value.trim() === '') return null;
@@ -174,13 +184,39 @@ export class ApplicationsService {
   async countsByJob(): Promise<Map<string, JobCounts>> {
     const counts = new Map<string, JobCounts>();
     for (const app of await this.list()) {
-      const entry = counts.get(app.jobId) ?? { total: 0, new: 0, shortlisted: 0 };
+      const entry = counts.get(app.jobId) ?? { ...EMPTY_COUNTS };
       entry.total += 1;
-      if (app.status === 'New') entry.new += 1;
-      if (app.status === 'Shortlisted') entry.shortlisted += 1;
+      const stage = STAGE_BY_STATUS[app.status];
+      if (stage) entry[stage] += 1;
       counts.set(app.jobId, entry);
     }
     return counts;
+  }
+
+  /** The newest applications across all jobs, most recent first. */
+  async recent(limit: number): Promise<ApplicationDto[]> {
+    return (await this.list())
+      .slice()
+      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
+      .slice(0, limit);
+  }
+
+  /**
+   * Like `query`, and also reports how many matches sit at each status when the
+   * status filter is ignored. That is what the status tabs above the list show.
+   */
+  async queryWithStatusCounts(
+    filters: ApplicationFilters,
+  ): Promise<{ matches: ApplicationDto[]; statusCounts: Record<string, number> }> {
+    const anyStatus = await this.query({ ...filters, status: undefined });
+    const statusCounts: Record<string, number> = { all: anyStatus.length };
+    for (const status of APPLICATION_STATUSES) statusCounts[status] = 0;
+    for (const app of anyStatus) {
+      if (app.status in statusCounts) statusCounts[app.status] += 1;
+    }
+    const wanted = filters.status?.toLowerCase();
+    const matches = wanted ? anyStatus.filter((app) => app.status.toLowerCase() === wanted) : anyStatus;
+    return { matches, statusCounts };
   }
 
   /** Calendar date of a timestamp in the configured time zone, as YYYY-MM-DD. */

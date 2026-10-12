@@ -4,13 +4,14 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { APPLICATION_STATUSES, LIMITS, PAGE_SIZES, RESUME_MIME_TYPES } from '../../shared/constants';
 import { jobInputSchema, zodFieldErrors } from '../../shared/job-schema';
-import type {
-  ApplicationDetailResponse,
-  ApplicationDto,
-  ApplicationListResponse,
-  JobSummaryDto,
-  OverviewResponse,
-  SessionResponse,
+import {
+  EMPTY_COUNTS,
+  type ApplicationDetailResponse,
+  type ApplicationDto,
+  type ApplicationListResponse,
+  type JobSummaryDto,
+  type OverviewResponse,
+  type SessionResponse,
 } from '../../shared/types';
 import { cleanText, resumeExtension } from '../../shared/validation';
 import { parseFilters } from '../applications';
@@ -91,21 +92,30 @@ export function adminRouter(ctx: AppContext): Router {
   // ---- Jobs ----
 
   router.get('/overview', async (req, res) => {
-    const [allJobs, counts] = await Promise.all([jobs.list(), applications.countsByJob()]);
+    const [allJobs, counts, recent] = await Promise.all([jobs.list(), applications.countsByJob(), applications.recent(8)]);
     const siteUrl = publicBaseUrl(ctx, req);
     const summaries: JobSummaryDto[] = allJobs.map((job) => ({
       ...toJobDto(job),
-      counts: counts.get(job.id) ?? { total: 0, new: 0, shortlisted: 0 },
+      counts: counts.get(job.id) ?? { ...EMPTY_COUNTS },
       applyUrl: `${siteUrl}/apply/${job.id}`,
     }));
+    const titles = new Map(allJobs.map((job) => [job.id, job.title]));
+    const totals = { ...EMPTY_COUNTS };
+    // Counted from every application, so candidates of a job whose row was removed still show up.
+    for (const entry of counts.values()) {
+      for (const key of Object.keys(totals) as (keyof typeof totals)[]) totals[key] += entry[key];
+    }
     const body: OverviewResponse = {
       jobs: summaries,
-      totals: {
-        activeJobs: summaries.filter((j) => j.status === 'Published').length,
-        applications: summaries.reduce((sum, j) => sum + j.counts.total, 0),
-        new: summaries.reduce((sum, j) => sum + j.counts.new, 0),
-        shortlisted: summaries.reduce((sum, j) => sum + j.counts.shortlisted, 0),
-      },
+      totals: { ...totals, activeJobs: summaries.filter((j) => j.status === 'Published').length },
+      recent: recent.map((app) => ({
+        id: app.id,
+        fullName: app.fullName,
+        jobId: app.jobId,
+        jobTitle: titles.get(app.jobId) ?? app.jobTitle,
+        submittedAt: app.submittedAt,
+        status: app.status,
+      })),
     };
     res.json(body);
   });
@@ -138,7 +148,10 @@ export function adminRouter(ctx: AppContext): Router {
 
   router.get('/applications', async (req, res) => {
     const query = req.query as Record<string, unknown>;
-    const [matches, allJobs] = await Promise.all([applications.query(parseFilters(query)), jobs.list()]);
+    const [{ matches, statusCounts }, allJobs] = await Promise.all([
+      applications.queryWithStatusCounts(parseFilters(query)),
+      jobs.list(),
+    ]);
 
     const requestedSize = Number(query.pageSize);
     const pageSize = (PAGE_SIZES as readonly number[]).includes(requestedSize) ? requestedSize : PAGE_SIZES[0];
@@ -153,6 +166,7 @@ export function adminRouter(ctx: AppContext): Router {
       pageSize,
       pageCount,
       allIds: matches.map((app) => app.id),
+      statusCounts,
       jobs: allJobs.map((job) => ({ id: job.id, title: job.title, status: job.status })),
     };
     res.json(body);

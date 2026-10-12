@@ -9,7 +9,7 @@ import { createStorage } from '../server/storage';
 import { columnLetters, createGoogleClients, toStorageError } from '../server/storage/google';
 import { StorageError } from '../server/storage/types';
 import { buildResumeFilename, safeName, validateResume } from '../server/resume-file';
-import { normalizeBasePath, resolveApiRoot } from '../shared/api-root';
+import { devProxyTarget, normalizeBasePath, resolveApiRoot } from '../shared/api-root';
 import { EXPERIENCE_RANGES, type Question } from '../shared/constants';
 import { jobInputSchema } from '../shared/job-schema';
 import {
@@ -268,6 +268,14 @@ describe('site address settings', () => {
     // Full address, with or without a trailing slash or its own path.
     expect(resolveApiRoot('https://api.example.com/', '/x/', 'http:')).toBe('https://api.example.com/api');
     expect(resolveApiRoot('http://example.com/hiring', '/', 'https:')).toBe('http://example.com/hiring/api');
+  });
+
+  it('works out where the frontend-only dev server forwards API calls', () => {
+    expect(devProxyTarget(undefined)).toBeNull();
+    expect(devProxyTarget('  ')).toBeNull();
+    expect(devProxyTarget('dev.aiassistant.co:8799')).toBe('http://dev.aiassistant.co:8799');
+    expect(devProxyTarget('https://dev.aiassistant.co/')).toBe('https://dev.aiassistant.co');
+    expect(devProxyTarget('http://localhost:8799')).toBe('http://localhost:8799');
   });
 
   it('reads the sub-folder and origin from APP_BASE_URL', () => {

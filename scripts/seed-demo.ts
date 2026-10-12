@@ -26,24 +26,37 @@ const FIRST = ['Asha', 'Bilal', 'Chen', 'Divya', 'Esha', 'Farhan', 'Gita', 'Hars
 const LAST = ['Rao', 'Khan', 'Wei', 'Nair', 'Roy', 'Mehta', 'Iyer', 'Shah', 'Verma', 'Das'];
 const CITIES = ['Bengaluru', 'Mumbai', 'Pune', 'Hyderabad', 'Chennai', 'Delhi NCR', 'Kochi'];
 
-/** A tiny but valid one-page PDF, so previews and downloads have something real to show. */
+/** A small, fully valid one-page PDF, so previews and downloads have something real to show. */
 function samplePdf(name: string, role: string): Buffer {
-  const text = `BT /F1 20 Tf 40 150 Td (${name}) Tj 0 -30 Td /F1 12 Tf (Sample resume for ${role}) Tj ET`;
-  return Buffer.from(
-    [
-      '%PDF-1.4',
-      '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj',
-      '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj',
-      '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 400 220]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj',
-      `4 0 obj<</Length ${text.length}>>stream`,
-      text,
-      'endstream endobj',
-      '5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj',
-      'trailer<</Root 1 0 R>>',
-      '%%EOF',
-      '',
-    ].join('\n'),
-  );
+  const safe = (text: string) => text.replace(/[\\()]/g, '');
+  const content = [
+    'BT',
+    `/F1 22 Tf 56 730 Td (${safe(name)}) Tj`,
+    `/F1 12 Tf 0 -26 Td (Sample resume for ${safe(role)}) Tj`,
+    '0 -40 Td (Experience) Tj',
+    '0 -18 Td (- Built and shipped products with cross-functional teams) Tj',
+    '0 -18 Td (- Sample data created for demonstration only) Tj',
+    'ET',
+  ].join('\n');
+  const objects = [
+    '<</Type/Catalog/Pages 2 0 R>>',
+    '<</Type/Pages/Kids[3 0 R]/Count 1>>',
+    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>',
+    `<</Length ${content.length}>>\nstream\n${content}\nendstream`,
+    '<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>',
+  ];
+  // The cross-reference table lists where each object starts; viewers rely on it.
+  let pdf = '%PDF-1.4\n';
+  const offsets: number[] = [];
+  objects.forEach((body, i) => {
+    offsets.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  pdf += offsets.map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  pdf += `trailer\n<</Size ${objects.length + 1}/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(pdf, 'latin1');
 }
 
 async function main() {

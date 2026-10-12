@@ -48,3 +48,22 @@ export function formatExperience(range: string, years: string): string {
 }
 
 export const experienceOptions = EXPERIENCE_RANGES.map((r) => ({ value: r.key, label: r.label }));
+
+/** "just now", "12m ago", "3h ago", "2d ago", then a plain date after a week. */
+export function timeAgo(iso: string, timeZone?: string, now = Date.now()): string {
+  const time = new Date(iso).getTime();
+  if (!iso || Number.isNaN(time)) return iso || '—';
+  const seconds = Math.max(0, Math.round((now - time) / 1000));
+  if (seconds < 60) return 'just now';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return formatDate(iso, timeZone);
+}
+
+export function plural(count: number, one: string, many = `${one}s`): string {
+  return `${count} ${count === 1 ? one : many}`;
+}

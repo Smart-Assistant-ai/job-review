@@ -4,7 +4,7 @@ import https from 'node:https';
 import path from 'node:path';
 import { normalizeBasePath } from '../shared/api-root';
 import { createApp } from './app';
-import { adminPasswordProblem, ConfigError, loadConfig } from './config';
+import { adminPasswordProblem, ConfigError, loadConfig, type AppConfig } from './config';
 import { createStorage } from './storage';
 
 /** Loads .env.local and .env if present. Variables already set in the environment win. */
@@ -13,6 +13,24 @@ function loadEnvFiles(): void {
     const file = path.resolve(process.cwd(), name);
     if (existsSync(file)) process.loadEnvFile(file);
   }
+}
+
+/**
+ * Reads the certificate files. Browsers need the whole chain (the site's
+ * certificate followed by the authority's intermediates), so a separate
+ * bundle file is appended to the certificate when one is configured.
+ */
+function readTlsFiles(tls: NonNullable<AppConfig['tls']>): { cert: string; key: Buffer } {
+  const read = (file: string, setting: string) => {
+    try {
+      return readFileSync(file);
+    } catch {
+      throw new ConfigError(`${setting} points to a file that cannot be read: ${file}`);
+    }
+  };
+  const chain = [read(tls.certFile, 'TLS_CERT_FILE').toString('utf8').trim()];
+  if (tls.caFile) chain.push(read(tls.caFile, 'TLS_CA_FILE').toString('utf8').trim());
+  return { cert: `${chain.join('\n')}\n`, key: read(tls.keyFile, 'TLS_KEY_FILE') };
 }
 
 async function main(): Promise<void> {
@@ -27,9 +45,7 @@ async function main(): Promise<void> {
 
   const { app } = await createApp({ config, storage, client, clientDir });
 
-  const server = config.tls
-    ? https.createServer({ cert: readFileSync(config.tls.certFile), key: readFileSync(config.tls.keyFile) }, app)
-    : http.createServer(app);
+  const server = config.tls ? https.createServer(readTlsFiles(config.tls), app) : http.createServer(app);
 
   server.listen(config.port, config.host, () => {
     const scheme = config.tls ? 'https' : 'http';

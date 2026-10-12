@@ -46,8 +46,12 @@ export interface AppConfig {
   appOrigin: string | null;
   /** Sub-folder part of that address, e.g. "/job-applicants-review", or "" at the root of the domain. */
   basePath: string;
-  /** Set to serve HTTPS directly from this process instead of through a reverse proxy. */
-  tls: { certFile: string; keyFile: string } | null;
+  /**
+   * Set to serve HTTPS directly from this process instead of through a reverse proxy.
+   * `caFile` is the certificate authority's bundle (intermediate certificates), when
+   * the certificate file holds only the site's own certificate.
+   */
+  tls: { certFile: string; keyFile: string; caFile: string | null } | null;
   adminPassword: string | null;
   sessionSecret: string;
   sessionHours: number;
@@ -194,8 +198,12 @@ export function loadConfig(source: Env = process.env): AppConfig {
 
   const certFile = env('TLS_CERT_FILE');
   const keyFile = env('TLS_KEY_FILE');
+  const caFile = env('TLS_CA_FILE');
   if (Boolean(certFile) !== Boolean(keyFile)) {
     throw new ConfigError('Set both TLS_CERT_FILE and TLS_KEY_FILE, or neither.');
+  }
+  if (caFile && !certFile) {
+    throw new ConfigError('TLS_CA_FILE needs TLS_CERT_FILE and TLS_KEY_FILE as well.');
   }
 
   const trustProxyRaw = env('TRUST_PROXY') ?? '0';
@@ -213,7 +221,14 @@ export function loadConfig(source: Env = process.env): AppConfig {
     appBaseUrl,
     appOrigin,
     basePath,
-    tls: certFile && keyFile ? { certFile: path.resolve(process.cwd(), certFile), keyFile: path.resolve(process.cwd(), keyFile) } : null,
+    tls:
+      certFile && keyFile
+        ? {
+            certFile: path.resolve(process.cwd(), certFile),
+            keyFile: path.resolve(process.cwd(), keyFile),
+            caFile: caFile ? path.resolve(process.cwd(), caFile) : null,
+          }
+        : null,
     adminPassword: env('ADMIN_PASSWORD') ?? null,
     sessionSecret,
     sessionHours: positiveNumber('SESSION_HOURS', 12),

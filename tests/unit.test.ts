@@ -289,6 +289,10 @@ describe('site address settings', () => {
     expect(loadConfig(base).appOrigin).toBeNull();
     expect(() => loadConfig({ ...base, APP_BASE_URL: 'dev.aiassistant.co' })).toThrow(/APP_BASE_URL/);
     expect(() => loadConfig({ ...base, TLS_CERT_FILE: 'cert.pem' })).toThrow(/TLS_KEY_FILE/);
+    expect(() => loadConfig({ ...base, TLS_CA_FILE: 'bundle.pem' })).toThrow(/TLS_CERT_FILE/);
+    const tls = loadConfig({ ...base, TLS_CERT_FILE: '/c/site.crt', TLS_KEY_FILE: '/c/site.key', TLS_CA_FILE: '/c/bundle.crt' }).tls;
+    expect(tls).toEqual({ certFile: '/c/site.crt', keyFile: '/c/site.key', caFile: '/c/bundle.crt' });
+    expect(loadConfig({ ...base, TLS_CERT_FILE: '/c/site.crt', TLS_KEY_FILE: '/c/site.key' }).tls?.caFile).toBeNull();
   });
 });
 

@@ -249,7 +249,7 @@ To see the email without sending anything, open a job in the dashboard and use *
 | `TLS_CERT_FILE`, `TLS_KEY_FILE` | no | – | Serve HTTPS directly from the backend port when no web server sits in front of it. |
 | `COMPANY_NAME` | no | `Careers` | Shown in headers and page titles. |
 | `PORT` | no | `3000` | Port the backend listens on, e.g. `8799`. |
-| `TRUST_PROXY` | behind a proxy | `0` | Number of reverse proxies in front of the backend. `1` behind nginx or Apache, `0` when browsers connect to it directly. |
+| `TRUST_PROXY` | behind a proxy | `0` | Whose word is taken for a visitor's address. `0` when browsers connect to the backend directly, `1` behind nginx or Apache, `cloudflare` when the site is reached through Cloudflare. |
 | `STORAGE_BACKEND` | no | `google` | `google` or `local`. |
 | `GOOGLE_DRIVE_ROOT_FOLDER_ID`, `GOOGLE_SHEET_ID` | for Google | – | The Recruitment System folder and the Applicants spreadsheet. |
 | `GOOGLE_AUTH_MODE` | for Google | inferred | `service_account` or `oauth`. |
@@ -421,13 +421,36 @@ When a web server forwards requests to the backend, set `TRUST_PROXY=1`. `X-Forw
 
 With `VITE_BASE_PATH` and `VITE_BASE_API_URL` empty and `APP_BASE_URL` set to the site's own address, `npm run build && npm start` serves the site and the API together on `PORT` at the root of a domain. Put a reverse proxy with HTTPS in front of it.
 
+### Its own domain through Cloudflare
+
+To give the site an address such as `https://careers.example.com` without touching the web server, let Cloudflare send that hostname straight to the backend's port, and let the backend serve the site as well as the API (the "everything from one process" setup above). The backend must already serve HTTPS on its port (`TLS_CERT_FILE`, `TLS_KEY_FILE`) with a certificate that covers the new hostname.
+
+In Cloudflare, for the domain:
+
+1. **DNS:** an `A` record for `careers` pointing at the server, with the proxy switched on.
+2. **Origin Rule:** when the hostname equals `careers.example.com`, rewrite the destination port to the backend's port, e.g. `8799`. Available on every plan.
+3. **Configuration Rule:** when the hostname equals `careers.example.com`, set SSL to Full (strict), so Cloudflare speaks HTTPS to the backend whatever the rest of the domain uses.
+
+On the server, in `.env`:
+
+```bash
+APP_BASE_URL=https://careers.example.com
+VITE_BASE_PATH=
+VITE_BASE_API_URL=
+TRUST_PROXY=cloudflare
+```
+
+Then `npm run build` (the site and the server this time) and restart. The site, the application links and the admin dashboard are now all under the new address, and updating later is `git pull && npm run build` plus a restart, with no files to copy anywhere.
+
+`TRUST_PROXY=cloudflare` matters: without it every visitor appears to come from Cloudflare and they all share one rate limit. With it, the visitor's address is taken from Cloudflare only when the connection really comes from one of Cloudflare's published address ranges (`server/cloudflare.ts`), so a request sent straight to the port cannot claim to be someone else.
+
 ### Production checklist
 
 - `STORAGE_BACKEND=google` and `npm run google:check` passes.
 - `APP_BASE_URL` is the public `https://` address including the sub-folder. This also makes the session cookie HTTPS-only.
 - The folder in `VITE_BASE_PATH` matches the folder in `APP_BASE_URL` (the backend prints a warning at startup if they differ).
 - `ADMIN_PASSWORD` is long and unique; `SESSION_SECRET` is random.
-- `TRUST_PROXY` matches the number of proxies in front of the backend.
+- `TRUST_PROXY` matches what is in front of the backend: the number of proxies, or `cloudflare`.
 - Run one backend instance only (see [Limits](#limits-and-known-trade-offs)).
 - `GET /api/health` on the backend returns `{"ok":true}` for uptime monitoring.
 

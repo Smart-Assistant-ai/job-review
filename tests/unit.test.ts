@@ -262,6 +262,20 @@ describe('configuration', () => {
   });
 });
 
+describe('visitor addresses behind a proxy', () => {
+  const base = { STORAGE_BACKEND: 'local', SESSION_SECRET: 's'.repeat(32) };
+
+  it('trusts nobody by default, or a number of proxies, or Cloudflare by name', () => {
+    expect(loadConfig(base).trustProxy).toBe(0);
+    expect(loadConfig({ ...base, TRUST_PROXY: '1' }).trustProxy).toBe(1);
+    const cloudflare = loadConfig({ ...base, TRUST_PROXY: 'Cloudflare' }).trustProxy;
+    expect(cloudflare).toContain('104.16.0.0/13');
+    expect(cloudflare).toContain('2606:4700::/32');
+    expect(() => loadConfig({ ...base, TRUST_PROXY: 'yes' })).toThrow(/TRUST_PROXY/);
+    expect(() => loadConfig({ ...base, TRUST_PROXY: '-1' })).toThrow(/TRUST_PROXY/);
+  });
+});
+
 describe('site address settings', () => {
   it('turns VITE_BASE_PATH into the folder the site is served from', () => {
     expect(normalizeBasePath(undefined)).toBe('/');

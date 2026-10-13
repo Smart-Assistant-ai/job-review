@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { CURRENCIES, type Currency } from '../shared/constants';
 import { isValidEmail } from '../shared/validation';
+import { CLOUDFLARE_RANGES } from './cloudflare';
 
 /**
  * How the server signs in to Google. Both kinds of credential stay on the
@@ -48,8 +49,12 @@ export interface EmailConfig {
 export interface AppConfig {
   port: number;
   host: string;
-  /** Express "trust proxy" setting: number of reverse-proxy hops in front of the app. */
-  trustProxy: number;
+  /**
+   * Express "trust proxy" setting, which decides whose word is taken for a visitor's
+   * address: the number of reverse-proxy hops in front of the app, or the only
+   * addresses a proxy may connect from (Cloudflare's, with TRUST_PROXY=cloudflare).
+   */
+  trustProxy: number | string[];
   isProduction: boolean;
   companyName: string;
   /** Public address of the site without a trailing slash, e.g. https://example.com/job-applicants-review */
@@ -230,9 +235,17 @@ export function loadConfig(source: Env = process.env): AppConfig {
   }
 
   const trustProxyRaw = env('TRUST_PROXY') ?? '0';
-  const trustProxy = Number(trustProxyRaw);
-  if (!Number.isInteger(trustProxy) || trustProxy < 0) {
-    throw new ConfigError('TRUST_PROXY must be the number of reverse proxies in front of the app (0, 1, 2...).');
+  let trustProxy: AppConfig['trustProxy'];
+  if (trustProxyRaw.toLowerCase() === 'cloudflare') {
+    // A request that reaches the server directly, not through Cloudflare, cannot pass itself off as someone else.
+    trustProxy = [...CLOUDFLARE_RANGES];
+  } else {
+    trustProxy = Number(trustProxyRaw);
+    if (!Number.isInteger(trustProxy) || trustProxy < 0) {
+      throw new ConfigError(
+        'TRUST_PROXY must be the number of reverse proxies in front of the app (0, 1, 2...), or "cloudflare" when the site is reached through Cloudflare.',
+      );
+    }
   }
 
   // A mistake in the email settings turns confirmation emails off; it must not stop applications.

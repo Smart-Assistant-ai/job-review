@@ -8,6 +8,7 @@ import { createApp } from '../server/app';
 import { StorageError, type DriveBackend, type SheetBackend } from '../server/storage/types';
 import {
   ADMIN_PASSWORD,
+  applicationForm,
   asObjects,
   createJob,
   docxBytes,
@@ -458,6 +459,36 @@ describe('submitting an application', () => {
     }
     expect(statuses).toEqual([422, 201, 201, 429, 429]);
     expect(await app.rawTab('Applications')).toHaveLength(3);
+  });
+
+  it('behind Cloudflare, ignores an address claimed by a request that did not come through Cloudflare', async () => {
+    await start({ env: { SUBMISSIONS_PER_IP_PER_HOUR: '2', TRUST_PROXY: 'cloudflare' } });
+    const job = await createJob(app, await app.login());
+    const statuses: number[] = [];
+    // These arrive straight from this machine, each pretending to be a different visitor.
+    for (let i = 0; i < 4; i++) {
+      const res = await fetch(`${app.baseUrl}/api/public/jobs/${job.id}/applications`, {
+        method: 'POST',
+        headers: { 'X-Forwarded-For': `203.0.113.${i + 1}`, 'CF-Connecting-IP': `203.0.113.${i + 1}` },
+        body: applicationForm(app, job, { fields: { email: `p${i}@example.com` } }),
+      });
+      statuses.push(res.status);
+    }
+    expect(statuses).toEqual([201, 201, 429, 429]);
+  });
+
+  it('behind one trusted proxy, counts each visitor the proxy reports separately', async () => {
+    await start({ env: { SUBMISSIONS_PER_IP_PER_HOUR: '1', TRUST_PROXY: '1' } });
+    const job = await createJob(app, await app.login());
+    const send = (ip: string, email: string) =>
+      fetch(`${app.baseUrl}/api/public/jobs/${job.id}/applications`, {
+        method: 'POST',
+        headers: { 'X-Forwarded-For': ip },
+        body: applicationForm(app, job, { fields: { email } }),
+      });
+    expect((await send('203.0.113.1', 'a@example.com')).status).toBe(201);
+    expect((await send('203.0.113.2', 'b@example.com')).status).toBe(201);
+    expect((await send('203.0.113.1', 'c@example.com')).status).toBe(429);
   });
 });
 

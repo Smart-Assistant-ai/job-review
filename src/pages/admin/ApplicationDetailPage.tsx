@@ -230,7 +230,7 @@ export function ApplicationDetailPage() {
               </label>
               <select
                 id="status-select"
-                className={cx('h-7 flex-1 cursor-pointer rounded-full border-0 py-0 pr-7 pl-2.5 text-xs font-medium ring-1 ring-inset', statusTone(app.status))}
+                className={cx('h-7 flex-1 cursor-pointer rounded-full border-0 py-0 pr-7 pl-2.5 text-xs font-medium ring-1 ring-inset [--select-arrow-inset:0.4rem]', statusTone(app.status))}
                 value={knownStatus ? app.status : ''}
                 disabled={savingStatus}
                 onChange={(e) => setStatus(e.target.value as ApplicationStatus)}

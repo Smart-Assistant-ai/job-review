@@ -9,6 +9,7 @@ There is no separate database. Google Sheets is the data store and Google Drive 
 - [How it works](#how-it-works)
 - [Run it locally](#run-it-locally)
 - [Connect Google](#connect-google)
+- [Confirmation emails](#confirmation-emails)
 - [Environment variables](#environment-variables)
 - [Deploy to a server](#deploy-to-a-server)
 - [Using the app](#using-the-app)
@@ -35,6 +36,8 @@ Google credentials exist only on the server. The browser never receives a Google
 1. Validate every field and the resume (type, size and file signature) on the server.
 2. Upload the resume to the job's Drive folder.
 3. Write the answers, the application and an activity entry to the sheet in a single all-or-nothing request.
+
+4. If [confirmation emails](#confirmation-emails) are on, queue one for the candidate. The candidate's reply does not wait for it, and a failed email never fails the application.
 
 The application row is the commit point. If step 3 fails, the uploaded resume is moved to the Drive trash, so there is never a record without a file or a half-written record. If Google's reply is lost but the row was in fact written, the app detects that and treats the application as saved instead of writing it twice.
 
@@ -195,6 +198,43 @@ To move the connection to a server, copy the `GOOGLE_*` values into the server's
 - **In the dashboard:** anyone who knows the admin password.
 - **Directly in Google Drive:** only the people the folder is shared with. The app never adds sharing permissions and never creates public links.
 
+## Confirmation emails
+
+Optional. When configured, every candidate gets a "we received your application" email a few seconds after applying, sent through [Resend](https://resend.com). The email names the company, the position, the application reference and the date, and explains what happens next. It contains no links and no images.
+
+### Set it up
+
+1. In Resend, open **Domains**, add your domain and create the DNS records it shows. Wait until the domain is marked verified. Until then Resend only delivers to your own account's address.
+2. Open **API Keys** and create a key with **Sending access**.
+3. Add these to the server's `.env`, then restart the backend:
+
+   ```bash
+   RESEND_API_KEY=re_...
+   EMAIL_FROM="Your Company Careers <careers@yourdomain.com>"
+   # Optional: where a candidate's reply goes. Without it the email says it is automated and asks candidates not to reply.
+   EMAIL_REPLY_TO=hr@yourdomain.com
+   ```
+
+4. Send yourself the real email:
+
+   ```bash
+   npm run email:test -- you@yourdomain.com
+   ```
+
+   `PASS` means Resend accepted it. `FAIL` prints Resend's reason, for example that the domain in `EMAIL_FROM` is not verified.
+
+The startup log says whether emails are on (`Confirmation emails: sent through Resend from ...`). If a setting is missing or malformed, emails stay off and the log says why; the application form keeps working either way.
+
+To see the email without sending anything, open a job in the dashboard and use **Preview the email** in the **Confirmation email** box. `npm run email:test -- --preview` writes the same HTML to a file.
+
+### How sending works
+
+- **Batched.** Emails are not sent one request each. They are collected for `EMAIL_BATCH_SECONDS` (10 by default) and sent together through Resend's batch endpoint, up to 100 emails per call. A full hundred goes out immediately without waiting. Twelve people applying within the same few seconds cost one call to Resend, not twelve.
+- **Retried.** If Resend is unreachable, rate limiting or failing, the same batch is tried again after 2, 4, 8 and 16 seconds, or after however long Resend asks. Each batch carries an idempotency key, so a retry of a call that did get through is not sent twice. Problems that retrying cannot fix (wrong key, unverified domain, quota used up) are not retried.
+- **One bad address does not block the rest.** Batches use Resend's permissive validation, so a refused message is reported on its own.
+- **Recorded.** Each application's **Activity** shows `Confirmation email sent` with the Resend message ID, or `Confirmation email not sent` with the reason. "Sent" means Resend accepted the message; bounces and deliveries are shown in the Resend dashboard, where each message is tagged with its application ID.
+- **Flushed on shutdown.** Emails still waiting for their batch are sent when the backend is stopped or restarted normally.
+
 ## Environment variables
 
 `.env.example` lists every setting with comments. The backend reads `.env.local` and then `.env` from the folder it is started in; real environment variables take priority over both.
@@ -222,6 +262,9 @@ To move the connection to a server, copy the `GOOGLE_*` values into the server's
 | `SUBMISSIONS_PER_IP_PER_HOUR` | no | `10` | Stored applications allowed per network address per hour. |
 | `LOGIN_ATTEMPTS_PER_15_MIN` | no | `10` | Wrong passwords allowed per address per 15 minutes. |
 | `SESSION_HOURS` | no | `12` | How long an admin stays signed in. |
+| `RESEND_API_KEY`, `EMAIL_FROM` | for emails | – | Resend API key and the sender, e.g. `Acme Careers <careers@acme.com>`. Set both to email candidates after they apply; leave both empty to send nothing. |
+| `EMAIL_REPLY_TO` | no | – | Address that receives replies to the confirmation email. Without it, the email states that it is automated and asks candidates not to reply. |
+| `EMAIL_BATCH_SECONDS` | no | `10` | How long emails are collected before they are sent together in one batch call. |
 
 The two `VITE_` settings are read when the site is built (`npm run build`) and are baked into the site's files. Changing them means building and uploading the site again. Everything else is read when the backend starts.
 
@@ -398,6 +441,7 @@ With `VITE_BASE_PATH` and `VITE_BASE_API_URL` empty and `APP_BASE_URL` set to th
 - **Candidates:** status tabs with live counts, search (name, email, phone, location, job title, notes, application ID) and filters for job, experience, application date and CTC. Sort by any column. Candidates not yet reviewed are marked. Hovering a row gives one-click **Shortlist**, **Reject**, resume download and the LinkedIn profile.
 - **Review:** **Review candidates** opens the first person in the current list with the resume beside their details. **Shortlist** and **Reject** are one click, notes save when you click away, and **Previous / Next** follow the same order as the list. Keyboard: `S` shortlist, `R` reject, `←` `→` (or `K` `J`) to move. Tick **Next after decision** to jump to the next candidate automatically.
 - **Bulk actions:** tick candidates (or select all that match the filters) to shortlist, reject or move them together, download their resumes as a ZIP, or export them as CSV.
+- **Confirmation email:** each job's page shows whether candidates are emailed after applying, with a preview of the exact email. See [Confirmation emails](#confirmation-emails).
 - **Export:** the **Export** menu exports the current list as CSV and, with a job selected, downloads all or only shortlisted resumes as a ZIP.
 
 ZIP downloads are prepared in two steps: the dashboard first asks the backend for the selection (so problems such as "nothing matches" appear as a normal message), then the browser fetches the file with a one-time link and saves it with its own download bar. Each ZIP contains a `_download-report.txt` listing how many resumes were included and naming any that could not be (for example a file deleted from Drive).
@@ -423,7 +467,7 @@ Worksheets in **Applicants**:
 | Jobs | job | Questions are stored as JSON in one cell. |
 | Applications | application | ID, job, candidate details, CTC, experience, LinkedIn, resume file ID and name, timestamp, status, notes. |
 | Application Answers | answer to a custom question | Includes the question text as it was when answered. |
-| Application Activity | event | Submission, status changes, note edits. Append-only. |
+| Application Activity | event | Submission, confirmation email sent or not sent, status changes, note edits. Append-only. |
 
 Working in the sheet directly is fine:
 
@@ -444,6 +488,7 @@ All candidate text is stored as plain text, so input such as `=IMPORTXML(...)` i
 - **Spam:** per-address rate limits, a hidden honeypot field, and a signed form token that rejects submissions sent without loading the form or within three seconds of loading it.
 - **Duplicates:** one application per email address per job. The same person can apply to other jobs.
 - **Headers:** a Content Security Policy that allows scripts only from the site itself, plus the standard hardening headers from Helmet.
+- **Email:** the Resend API key is read on the server only and never reaches the browser or error messages. Everything placed in the email is escaped, and the candidate's name appears only as a first-name greeting and only when it reads as a name, so the form cannot be used to send someone a message or link of the sender's choosing. One application per email address per job, plus the per-address rate limit, bounds how many emails anyone can trigger.
 - **Logs:** request bodies and candidate details are never logged. Storage errors are logged without data.
 - **Errors:** candidates see a generic message when storage fails; administrators see the specific cause (for example that Google authorization has expired) but never credentials.
 
@@ -472,7 +517,10 @@ The suite starts the real server against the local stand-in storage and drives i
 - updating the correct row after the sheet has been sorted and had columns inserted by hand;
 - single resume download, ZIP of selected / all / shortlisted resumes, missing files, duplicate file names, a 300-resume ZIP, cancelled downloads;
 - CSV export with custom answers and formula neutralisation;
-- hosting in a sub-folder with the backend on another address: links, cross-address sign-in and requests, and refusal of other websites.
+- hosting in a sub-folder with the backend on another address: links, cross-address sign-in and requests, and refusal of other websites;
+- confirmation emails: the template and its escaping, the exact request sent to Resend's batch endpoint, batching of bursts into one call, the 100-per-call cap, retries under the same idempotency key, giving up, refused addresses, sending on shutdown, and that a failed email never fails an application.
+
+The email tests use a stand-in for Resend, so no real email is sent. Verify the real connection with `npm run email:test -- you@yourdomain.com` after setting the key.
 
 The Google adapter itself (`server/storage/google.ts`) cannot be covered by offline tests. Verify it against your account with `npm run google:check` after connecting.
 
@@ -490,6 +538,7 @@ Manual check after deploying:
 - **Google quotas.** The Sheets API allows roughly 60 reads and 60 writes per minute per user. Each submission costs one write and the dashboard caches reads for 15 seconds, so this comfortably handles a busy job posting but not thousands of submissions per minute. Rate-limited calls are retried with backoff.
 - **Scale of the sheet.** The dashboard loads the Applications worksheet into memory to search and filter. This is fast for tens of thousands of rows; beyond that a real database would be the right tool.
 - **A very small race remains when updating rows.** Row positions are resolved from a fresh read immediately before writing, but Google Sheets has no "update where ID equals" operation. If someone sorts the sheet in the fraction of a second between that read and the write, the update could land on a different row.
+- **Emails waiting to be sent live in memory.** A normal stop or restart sends them first, but if the process is killed outright or the machine goes down, emails queued in the last few seconds (or still being retried) are lost. The applications themselves are already saved. pm2 waits 1.6 seconds before killing a process; that is normally enough for one batch call.
 - **Resume preview** is available for PDFs. Word documents are downloaded instead.
 - **CTC filters** compare raw amounts. Choose a currency in the filter to compare like with like.
 - **Editing questions** on a job that already has applications is safe: earlier answers keep the question text they were given under.

@@ -122,6 +122,20 @@ export interface ApplicationDetailResponse {
   job: { id: string; title: string; status: JobStatus } | null;
 }
 
+export interface JobDetailResponse {
+  job: JobDto;
+  /** Public link candidates use to apply. */
+  applyUrl: string;
+  /** Whether candidates are emailed after applying, and if not although configured, why. */
+  confirmationEmail: { on: boolean; problem: string | null };
+}
+
+export interface SubmitApplicationResponse {
+  applicationId: string;
+  /** Whether a confirmation email is on its way to the candidate. */
+  confirmationEmail: boolean;
+}
+
 export interface SessionResponse {
   authenticated: boolean;
   companyName: string;

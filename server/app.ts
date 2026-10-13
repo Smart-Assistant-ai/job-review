@@ -6,14 +6,14 @@ import helmet from 'helmet';
 import type { ApiErrorBody } from '../shared/types';
 import { sameOriginOnly } from './auth';
 import type { AppConfig } from './config';
-import { createContext, type AppContext } from './context';
+import { createContext, type AppContext, type ContextOptions } from './context';
 import { cors } from './cors';
 import { HttpError } from './errors';
 import { adminRouter } from './routes/admin';
 import { publicRouter } from './routes/public';
 import { StorageError, type Storage } from './storage';
 
-export interface AppOptions {
+export interface AppOptions extends ContextOptions {
   config: AppConfig;
   storage: Storage;
   /**
@@ -63,7 +63,7 @@ function errorHandler(): ErrorRequestHandler {
 
 export async function createApp(options: AppOptions): Promise<{ app: Express; ctx: AppContext }> {
   const { config, storage } = options;
-  const ctx = createContext(config, storage);
+  const ctx = createContext(config, storage, { emailTransport: options.emailTransport });
   const app = express();
 
   app.disable('x-powered-by');

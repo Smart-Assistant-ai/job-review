@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { CURRENCIES, EXPERIENCE_RANGES, experienceRangeByKey, type Question } from '../../shared/constants';
-import type { PublicJobResponse } from '../../shared/types';
+import type { PublicJobResponse, SubmitApplicationResponse } from '../../shared/types';
 import {
   formatFileSize,
   parseAmount,
@@ -13,7 +13,7 @@ import {
 } from '../../shared/validation';
 import { PublicShell } from '../components/PublicShell';
 import { RichText } from '../components/RichText';
-import { Alert, Button, Card, cx, Field, Icon, PageLoading, Select, TextArea, TextInput, buttonClass } from '../components/ui';
+import { Alert, Button, Card, ChoiceGroup, cx, Field, Icon, PageLoading, Select, TextArea, TextInput, buttonClass, type IconName } from '../components/ui';
 import { api, ApiError } from '../lib/api';
 import { formatExperience, formatMoney, lakhsLabel } from '../lib/format';
 import { useApi } from '../lib/useApi';
@@ -64,16 +64,20 @@ export function ApplyPage() {
   }
 
   return (
-    <PublicShell companyName={data.companyName} title={data.job.title}>
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-8 lg:py-10">
+    <PublicShell companyName={data.companyName} title={data.job.title} width={COLUMN}>
+      <JobHero job={data.job} companyName={data.companyName} />
+      <div className={cx(COLUMN, 'mx-auto py-3 md:px-6 md:py-6 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-start lg:gap-8 lg:py-8')}>
         <JobSummary job={data.job} />
-        <main className="mt-6 lg:mt-0">
+        <main className="mt-3 md:mt-6 lg:mt-0">
           {data.form ? (
             // Keyed by job so navigating to another job starts a clean form.
-            <ApplicationForm key={data.job.id} job={data.job} form={data.form} />
+            <ApplicationForm key={data.job.id} job={data.job} form={data.form} companyName={data.companyName} />
           ) : (
-            <Card className="px-6 py-10 text-center">
-              <h2 className="text-lg font-semibold text-slate-900">Applications are closed</h2>
+            <Card className={cx(SHEET, 'px-6 py-12 text-center')}>
+              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                <Icon name="clock" className="h-6 w-6" />
+              </span>
+              <h2 className="mt-4 text-lg font-semibold text-slate-900">Applications are closed</h2>
               <p className="mt-2 text-sm text-slate-600">This position is no longer accepting applications.</p>
               <Link to="/" className={cx(buttonClass('secondary'), 'mt-6')}>
                 View open positions
@@ -85,6 +89,15 @@ export function ApplyPage() {
     </PublicShell>
   );
 }
+
+/** One comfortable column for reading and typing, until the screen has room for two. */
+const COLUMN = 'max-w-3xl lg:max-w-6xl';
+
+/**
+ * On phones and small tablets a card spans the full width of the screen, so
+ * its contents get the room that side margins and rounded corners would take.
+ */
+const SHEET = 'max-md:rounded-none max-md:border-x-0';
 
 function Message({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -98,6 +111,41 @@ function Message({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+function Chip({ icon, children }: { icon: IconName; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm ring-1 ring-slate-200 ring-inset">
+      <Icon name={icon} className="text-brand-600" />
+      {children}
+    </span>
+  );
+}
+
+/** The job title, large, with the few facts a candidate wants before starting. */
+function JobHero({ job, companyName }: { job: PublicJobResponse['job']; companyName: string }) {
+  return (
+    <div className="border-b border-slate-200 bg-linear-to-b from-brand-50 via-brand-50/40 to-white">
+      <div className={cx(COLUMN, 'mx-auto px-4 py-7 sm:px-6 sm:py-10')}>
+        <p className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand-700 shadow-sm ring-1 ring-brand-200 ring-inset">
+          <span className={cx('h-1.5 w-1.5 rounded-full', job.open ? 'bg-emerald-500' : 'bg-slate-400')} aria-hidden="true" />
+          {job.open ? `${companyName} is hiring` : 'Applications closed'}
+        </p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">{job.title}</h1>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {job.experienceCriteria && <Chip icon="briefcase">{job.experienceCriteria}</Chip>}
+          {job.open && <Chip icon="clock">Takes about 3 minutes</Chip>}
+          {job.open && <Chip icon="file">Keep your resume ready</Chip>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const NEXT_STEPS = [
+  { title: 'You apply', text: 'Three short steps and your resume.' },
+  { title: 'Our team reviews', text: 'Every application is read by a person.' },
+  { title: 'We contact you', text: 'If your profile matches the role.' },
+];
+
 function JobSummary({ job }: { job: PublicJobResponse['job'] }) {
   const [expanded, setExpanded] = useState(false);
   const sections = [
@@ -107,40 +155,49 @@ function JobSummary({ job }: { job: PublicJobResponse['job'] }) {
   ].filter((s) => s.text.trim() !== '');
 
   return (
-    <aside className="lg:sticky lg:top-6">
-      <Card className="p-5 sm:p-6">
-        <p className="text-xs font-semibold tracking-wide text-brand-700 uppercase">You are applying for</p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{job.title}</h1>
-        {job.experienceCriteria && (
-          <p className="mt-2 text-sm text-slate-600">
-            <span className="font-medium text-slate-700">Experience:</span> {job.experienceCriteria}
-          </p>
-        )}
+    <aside className="space-y-4 lg:sticky lg:top-6">
+      {sections.length > 0 && (
+        <Card className={cx(SHEET, 'px-4 py-4 sm:px-6 md:py-5 lg:p-6')}>
+          {/* On phones the description is collapsed so the form is reachable without scrolling far. */}
+          <button
+            type="button"
+            className="flex w-full items-center justify-between text-left text-sm font-semibold text-slate-900 lg:hidden"
+            aria-expanded={expanded}
+            aria-controls="job-details"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? 'Hide job description' : 'Read the job description'}
+            <Icon name={expanded ? 'up' : 'down'} className="text-slate-500" />
+          </button>
+          <div id="job-details" className={cx('space-y-5 lg:block', expanded ? 'mt-4 block' : 'hidden')}>
+            {sections.map((section) => (
+              <section key={section.heading}>
+                <h2 className="mb-2 text-sm font-semibold text-slate-900">{section.heading}</h2>
+                <RichText text={section.text} />
+              </section>
+            ))}
+          </div>
+        </Card>
+      )}
 
-        {sections.length > 0 && (
-          <>
-            {/* On phones the description is collapsed so the form is reachable without scrolling far. */}
-            <button
-              type="button"
-              className="mt-4 flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 lg:hidden"
-              aria-expanded={expanded}
-              aria-controls="job-details"
-              onClick={() => setExpanded((v) => !v)}
-            >
-              {expanded ? 'Hide job description' : 'View job description'}
-              <Icon name={expanded ? 'up' : 'down'} />
-            </button>
-            <div id="job-details" className={cx('mt-5 space-y-5 lg:block', expanded ? 'block' : 'hidden')}>
-              {sections.map((section) => (
-                <section key={section.heading}>
-                  <h2 className="mb-2 text-sm font-semibold text-slate-900">{section.heading}</h2>
-                  <RichText text={section.text} />
-                </section>
-              ))}
-            </div>
-          </>
-        )}
-      </Card>
+      {job.open && (
+        <Card className="hidden p-5 sm:p-6 lg:block">
+          <h2 className="text-sm font-semibold text-slate-900">What happens next</h2>
+          <ol className="mt-4 space-y-4">
+            {NEXT_STEPS.map((item, i) => (
+              <li key={item.title} className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-700 ring-1 ring-brand-200 ring-inset">
+                  {i + 1}
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-slate-900">{item.title}</p>
+                  <p className="text-sm text-slate-500">{item.text}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </Card>
+      )}
     </aside>
   );
 }
@@ -155,10 +212,10 @@ function Stepper({ step, onBack }: { step: number; onBack: (target: number) => v
           const marker = (
             <span
               className={cx(
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold',
-                done && 'bg-brand-600 text-white',
-                current && 'bg-brand-600 text-white ring-4 ring-brand-100',
-                !done && !current && 'bg-slate-100 text-slate-500',
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-colors',
+                done && 'bg-emerald-500 text-white',
+                current && 'bg-brand-600 text-white shadow-md ring-4 ring-brand-100',
+                !done && !current && 'bg-slate-100 text-slate-400',
               )}
             >
               {done ? <Icon name="check" /> : i + 1}
@@ -167,7 +224,7 @@ function Stepper({ step, onBack }: { step: number; onBack: (target: number) => v
           return (
             <li key={label} className={cx('flex items-center', i < STEPS.length - 1 && 'flex-1')} aria-current={current ? 'step' : undefined}>
               {done ? (
-                <button type="button" onClick={() => onBack(i)} className="flex items-center gap-2 rounded-full" aria-label={`Go back to ${label}`}>
+                <button type="button" onClick={() => onBack(i)} className="flex items-center gap-2 rounded-full hover:opacity-80" aria-label={`Go back to ${label}`}>
                   {marker}
                   <span className="hidden text-sm font-medium text-slate-700 sm:inline">{label}</span>
                 </button>
@@ -177,7 +234,7 @@ function Stepper({ step, onBack }: { step: number; onBack: (target: number) => v
                   <span className={cx('hidden text-sm font-medium sm:inline', current ? 'text-slate-900' : 'text-slate-500')}>{label}</span>
                 </span>
               )}
-              {i < STEPS.length - 1 && <span className={cx('mx-3 h-0.5 flex-1 rounded', done ? 'bg-brand-600' : 'bg-slate-200')} aria-hidden="true" />}
+              {i < STEPS.length - 1 && <span className={cx('mx-3 h-0.5 flex-1 rounded transition-colors', done ? 'bg-emerald-500' : 'bg-slate-200')} aria-hidden="true" />}
             </li>
           );
         })}
@@ -189,12 +246,19 @@ function Stepper({ step, onBack }: { step: number; onBack: (target: number) => v
   );
 }
 
+const STEP_INTROS = [
+  'Tell us who you are and how to reach you.',
+  'A few details about your experience.',
+  'Upload your resume and check your details before sending.',
+];
+
 interface FormProps {
   job: PublicJobResponse['job'];
   form: NonNullable<PublicJobResponse['form']>;
+  companyName: string;
 }
 
-function ApplicationForm({ job, form }: FormProps) {
+function ApplicationForm({ job, form, companyName }: FormProps) {
   const [values, setValues] = useState<ApplicationFormValues>({
     fullName: '',
     email: '',
@@ -215,6 +279,7 @@ function ApplicationForm({ job, form }: FormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submittedId, setSubmittedId] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
   const [dirty, setDirty] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -291,7 +356,8 @@ function ApplicationForm({ job, form }: FormProps) {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const result = await api<{ applicationId: string }>(`/api/public/jobs/${job.id}/applications`, { body });
+      const result = await api<SubmitApplicationResponse>(`/api/public/jobs/${job.id}/applications`, { body });
+      setEmailSent(result.confirmationEmail);
       setSubmittedId(result.applicationId);
       window.scrollTo({ top: 0 });
     } catch (err) {
@@ -321,31 +387,79 @@ function ApplicationForm({ job, form }: FormProps) {
 
   if (submittedId) {
     return (
-      <Card className="px-6 py-10 text-center sm:px-10">
-        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-          <Icon name="check" className="h-6 w-6" />
-        </span>
-        <h2 className="mt-4 text-xl font-semibold text-slate-900" role="status">
-          Application submitted
-        </h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Thank you, {values.fullName.trim().split(/\s+/)[0]}. We have received your application for{' '}
-          <span className="font-medium text-slate-800">{job.title}</span> and will be in touch if there is a match.
-        </p>
-        <p className="mt-5 inline-block rounded-lg bg-slate-100 px-4 py-2 text-sm text-slate-700">
-          Reference: <span className="font-mono font-semibold">{submittedId}</span>
-        </p>
+      <Card className={cx(SHEET, 'overflow-hidden')}>
+        <div className="bg-linear-to-b from-emerald-50 to-white px-4 pt-10 pb-6 text-center sm:px-10">
+          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg ring-8 ring-emerald-100">
+            <Icon name="check" className="h-8 w-8" />
+          </span>
+          <h2 className="mt-5 text-2xl font-semibold tracking-tight text-slate-900" role="status">
+            Application submitted
+          </h2>
+          <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-slate-700">
+            Thank you for applying to <span className="font-semibold text-slate-900">{companyName}</span> for the{' '}
+            <span className="font-semibold text-slate-900">{job.title}</span> position.
+          </p>
+          <p className="mx-auto mt-2 max-w-md text-[15px] leading-relaxed text-slate-600">
+            Our team will review your application. If your profile matches the requirements, we will contact you shortly.
+          </p>
+          {emailSent && (
+            <p className="mx-auto mt-5 flex max-w-md items-start justify-center gap-2 rounded-xl bg-white/70 px-4 py-3 text-left text-sm text-slate-600 ring-1 ring-emerald-100">
+              <Icon name="mail" className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <span>
+                A confirmation email is on its way to <span className="font-medium wrap-anywhere text-slate-900">{values.email.trim()}</span>. If
+                you cannot find it in a few minutes, check your spam folder.
+              </span>
+            </p>
+          )}
+        </div>
+
+        <div className="border-t border-slate-100 px-4 py-6 sm:px-10">
+          <ol className="mx-auto max-w-sm space-y-3">
+            {[
+              { title: 'Application received', done: true },
+              { title: 'Review by our team', done: false },
+              { title: 'We contact you if your profile matches', done: false },
+            ].map((item, i) => (
+              <li key={item.title} className="flex items-center gap-3 text-sm">
+                <span
+                  className={cx(
+                    'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+                    item.done ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500',
+                  )}
+                >
+                  {item.done ? <Icon name="check" className="h-3.5 w-3.5" /> : i + 1}
+                </span>
+                <span className={item.done ? 'font-medium text-slate-900' : 'text-slate-600'}>{item.title}</span>
+              </li>
+            ))}
+          </ol>
+
+          <div className="mt-6 flex flex-col items-center gap-3 border-t border-slate-100 pt-5 text-center">
+            <p className="text-xs text-slate-500">
+              Your reference: <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono font-semibold text-slate-700">{submittedId}</span>
+            </p>
+            <Link to="/" className={buttonClass('secondary')}>
+              View other open positions
+            </Link>
+          </div>
+        </div>
       </Card>
     );
   }
 
   return (
-    <Card className="p-5 sm:p-8">
+    <Card className={cx(SHEET, 'px-4 py-6 shadow-md sm:px-6 md:p-8')}>
       <Stepper step={step} onBack={goTo} />
-      <form onSubmit={submit} noValidate className="mt-6">
-        <h2 ref={headingRef} tabIndex={-1} className="text-lg font-semibold text-slate-900 outline-none">
+      {/* Taller fields with larger text on this form: easier to read and to tap. */}
+      <form
+        onSubmit={submit}
+        noValidate
+        className="mt-7 [&_input:not([type=file],[type=radio])]:h-11 [&_input]:text-base [&_select]:h-11 [&_select]:text-base [&_textarea]:text-base"
+      >
+        <h2 ref={headingRef} tabIndex={-1} className="text-xl font-semibold tracking-tight text-slate-900 outline-none">
           {STEPS[step]}
         </h2>
+        <p className="mt-1 text-sm text-slate-500">{STEP_INTROS[step]}</p>
 
         {/* Hidden from people; automated form-fillers tend to complete it. */}
         <div className="absolute -left-[9999px] h-0 w-0 overflow-hidden" aria-hidden="true">
@@ -355,7 +469,7 @@ function ApplicationForm({ job, form }: FormProps) {
           </label>
         </div>
 
-        <div className="mt-5 space-y-5">
+        <div className="mt-6 space-y-5">
           {step === 0 && <BasicStep values={values} errors={errors} set={set} />}
           {step === 1 && (
             <ProfessionalStep values={values} errors={errors} set={set} setAnswer={setAnswer} questions={job.questions} />
@@ -378,21 +492,24 @@ function ApplicationForm({ job, form }: FormProps) {
           </Alert>
         )}
 
-        <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-between">
+        <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
           {step > 0 ? (
             <Button variant="secondary" size="lg" icon="left" onClick={() => goTo(step - 1)} disabled={submitting}>
               Back
             </Button>
           ) : (
-            <span />
+            <p className="hidden text-xs text-slate-500 sm:block">
+              Step {step + 1} of {STEPS.length}
+            </p>
           )}
           {step < STEPS.length - 1 ? (
-            <Button type="submit" variant="primary" size="lg">
-              Continue <Icon name="right" />
+            <Button type="submit" variant="primary" size="lg" className="group sm:min-w-40">
+              Continue <Icon name="arrowRight" className="transition-transform group-hover:translate-x-1" />
             </Button>
           ) : (
-            <Button type="submit" variant="primary" size="lg" busy={submitting}>
+            <Button type="submit" variant="primary" size="lg" className="group sm:min-w-48" busy={submitting}>
               {submitting ? 'Submitting…' : 'Submit application'}
+              {!submitting && <Icon name="arrowRight" className="transition-transform group-hover:translate-x-1" />}
             </Button>
           )}
         </div>
@@ -400,6 +517,8 @@ function ApplicationForm({ job, form }: FormProps) {
     </Card>
   );
 }
+
+const YES_NO = ['Yes', 'No'] as const;
 
 interface StepProps {
   values: ApplicationFormValues;
@@ -443,76 +562,88 @@ function ProfessionalStep({ values, errors, set, setAnswer, questions }: StepPro
 
   return (
     <>
-      <div className="grid gap-5 sm:grid-cols-[9rem_minmax(0,1fr)]">
-        <Field label="Currency" required error={errors.ctcCurrency}>
-          {(control) => (
-            <Select {...control} name="ctcCurrency" value={values.ctcCurrency} onChange={(e) => set('ctcCurrency', e.target.value)}>
-              {CURRENCIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </Select>
-          )}
-        </Field>
-        <Field
-          label={`Current annual CTC (${values.ctcCurrency})`}
-          required
-          error={errors.ctcAmount}
-          hint={
-            amount !== null && amount > 0 ? (
-              <>
-                {formatMoney(amount, values.ctcCurrency)} per year{lakhs ? ` (${lakhs})` : ''}
-              </>
-            ) : (
-              'Enter the full yearly amount, for example 1200000. Enter 0 if not applicable.'
-            )
-          }
-        >
-          {(control) => (
-            <TextInput {...control} name="ctcAmount" inputMode="decimal" autoComplete="off" value={values.ctcAmount} onChange={(e) => set('ctcAmount', e.target.value)} maxLength={20} />
-          )}
-        </Field>
-      </div>
-
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Total professional experience" required error={errors.experienceRange}>
-          {(control) => (
-            <Select
-              {...control}
-              name="experienceRange"
-              value={values.experienceRange}
-              onChange={(e) => {
-                const nextRange = experienceRangeByKey(e.target.value);
-                set('experienceRange', e.target.value);
-                // Keep the exact year only if it is still a valid choice for the new range.
-                if (!nextRange?.years.includes(values.experienceYears)) set('experienceYears', '');
-              }}
-            >
-              <option value="">Select…</option>
-              {EXPERIENCE_RANGES.map((r) => (
-                <option key={r.key} value={r.key}>
-                  {r.label}
-                </option>
-              ))}
-            </Select>
-          )}
-        </Field>
-        {range && range.years.length > 0 && (
-          <Field label="Exact completed years" required error={errors.experienceYears}>
-            {(control) => (
-              <Select {...control} name="experienceYears" value={values.experienceYears} onChange={(e) => set('experienceYears', e.target.value)}>
-                <option value="">Select…</option>
-                {range.years.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
+      <Field
+        label="Current annual CTC"
+        required
+        error={errors.ctcAmount ?? errors.ctcCurrency}
+        hint={
+          amount !== null && amount > 0 ? (
+            <>
+              {formatMoney(amount, values.ctcCurrency)} per year{lakhs ? ` (${lakhs})` : ''}
+            </>
+          ) : (
+            'Enter the full yearly amount, for example 1200000. Enter 0 if not applicable.'
+          )
+        }
+      >
+        {(control) => (
+          // One control: the currency sits on the left edge of the amount.
+          <div className="flex">
+            <div className="w-24 shrink-0">
+              <Select
+                aria-label="Currency"
+                name="ctcCurrency"
+                className="relative rounded-r-none border-r-0 focus:z-10"
+                value={values.ctcCurrency}
+                onChange={(e) => set('ctcCurrency', e.target.value)}
+              >
+                {CURRENCIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
                   </option>
                 ))}
               </Select>
-            )}
-          </Field>
+            </div>
+            <TextInput
+              {...control}
+              name="ctcAmount"
+              inputMode="decimal"
+              autoComplete="off"
+              className="relative min-w-0 flex-1 rounded-l-none focus:z-10"
+              value={values.ctcAmount}
+              onChange={(e) => set('ctcAmount', e.target.value)}
+              maxLength={20}
+            />
+          </div>
         )}
-      </div>
+      </Field>
+
+      <Field label="Total professional experience" required error={errors.experienceRange}>
+        {(control) => (
+          <Select
+            {...control}
+            name="experienceRange"
+            value={values.experienceRange}
+            onChange={(e) => {
+              const nextRange = experienceRangeByKey(e.target.value);
+              set('experienceRange', e.target.value);
+              // Keep the exact year only if it is still a valid choice for the new range.
+              if (!nextRange?.years.includes(values.experienceYears)) set('experienceYears', '');
+            }}
+          >
+            <option value="">Select…</option>
+            {EXPERIENCE_RANGES.map((r) => (
+              <option key={r.key} value={r.key}>
+                {r.label}
+              </option>
+            ))}
+          </Select>
+        )}
+      </Field>
+      {range && range.years.length > 0 && (
+        <Field label="Exact completed years" required error={errors.experienceYears}>
+          {(control) => (
+            <Select {...control} name="experienceYears" value={values.experienceYears} onChange={(e) => set('experienceYears', e.target.value)}>
+              <option value="">Select…</option>
+              {range.years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+      )}
 
       <Field label="LinkedIn profile URL" required error={errors.linkedinUrl} hint="For example linkedin.com/in/your-name">
         {(control) => (
@@ -525,6 +656,28 @@ function ProfessionalStep({ values, errors, set, setAnswer, questions }: StepPro
           {questions.map((question) => {
             const value = values.answers[question.id] ?? '';
             const error = errors[`answers.${question.id}`];
+            if (question.type === 'yes_no') {
+              return (
+                <Field
+                  key={question.id}
+                  group
+                  label={question.label}
+                  required={question.required}
+                  error={error}
+                  hint={
+                    !question.required && value ? (
+                      <button type="button" className="font-medium text-brand-700 hover:underline" onClick={() => setAnswer(question.id, '')}>
+                        Clear answer
+                      </button>
+                    ) : undefined
+                  }
+                >
+                  {(control) => (
+                    <ChoiceGroup {...control} name={`answer-${question.id}`} options={YES_NO} value={value} onChange={(v) => setAnswer(question.id, v)} />
+                  )}
+                </Field>
+              );
+            }
             return (
               <Field key={question.id} label={question.label} required={question.required} error={error}>
                 {(control) =>
@@ -535,7 +688,7 @@ function ProfessionalStep({ values, errors, set, setAnswer, questions }: StepPro
                   ) : (
                     <Select {...control} value={value} onChange={(e) => setAnswer(question.id, e.target.value)}>
                       <option value="">Select…</option>
-                      {(question.type === 'yes_no' ? ['Yes', 'No'] : question.options).map((option) => (
+                      {question.options.map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
@@ -645,13 +798,17 @@ function ResumeStep({ values, file, error, maxBytes, onChoose, onEdit }: ResumeS
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
             className={cx(
-              'flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors',
-              dragging ? 'border-brand-500 bg-brand-50' : error ? 'border-red-300 bg-red-50' : 'border-slate-300 hover:border-brand-400 hover:bg-slate-50',
+              'group flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed px-4 py-9 text-center transition-colors',
+              dragging ? 'border-brand-500 bg-brand-50' : error ? 'border-rose-300 bg-rose-50' : 'border-slate-300 bg-slate-50/60 hover:border-brand-400 hover:bg-brand-50/50',
             )}
           >
-            <Icon name="upload" className="h-6 w-6 text-slate-500" />
-            <span className="text-sm font-medium text-brand-700">Choose a file</span>
-            <span className="hidden text-xs text-slate-500 sm:inline">or drag and drop it here</span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-brand-600 shadow-sm ring-1 ring-slate-200 transition-transform group-hover:-translate-y-0.5">
+              <Icon name="upload" className="h-5 w-5" />
+            </span>
+            <span className="text-sm font-semibold text-slate-900">
+              <span className="text-brand-700">Choose your resume</span>
+              <span className="hidden font-normal text-slate-500 sm:inline"> or drag it here</span>
+            </span>
           </label>
         )}
         {error ? (

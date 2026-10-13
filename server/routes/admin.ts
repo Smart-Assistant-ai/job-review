@@ -9,6 +9,7 @@ import {
   type ApplicationDetailResponse,
   type ApplicationDto,
   type ApplicationListResponse,
+  type JobDetailResponse,
   type JobSummaryDto,
   type OverviewResponse,
   type SessionResponse,
@@ -19,6 +20,7 @@ import { adminPasswordProblem } from '../config';
 import { contentDisposition, publicBaseUrl, type AppContext } from '../context';
 import { toCsv } from '../csv';
 import { DownloadTracker } from '../downloads';
+import { applicationReceivedEmail } from '../email/templates';
 import { HttpError, notFound } from '../errors';
 import { isApplicationId, isJobId } from '../ids';
 import { toJobDto } from '../jobs';
@@ -122,7 +124,27 @@ export function adminRouter(ctx: AppContext): Router {
 
   router.get('/jobs/:jobId', async (req, res) => {
     const job = await jobs.require(String(req.params.jobId));
-    res.json({ job: toJobDto(job), applyUrl: `${publicBaseUrl(ctx, req)}/apply/${job.id}` });
+    const body: JobDetailResponse = {
+      job: toJobDto(job),
+      applyUrl: `${publicBaseUrl(ctx, req)}/apply/${job.id}`,
+      confirmationEmail: { on: config.email !== null, problem: config.emailProblem },
+    };
+    res.json(body);
+  });
+
+  // The confirmation email as a candidate for this job receives it, filled with sample details.
+  router.get('/jobs/:jobId/email-preview', async (req, res) => {
+    const job = await jobs.require(String(req.params.jobId));
+    const { html } = applicationReceivedEmail({
+      companyName: config.companyName,
+      jobTitle: job.title,
+      candidateName: 'Asha Rao',
+      applicationId: 'APP-SAMPLE1234',
+      submittedAt: new Date().toISOString(),
+      timezone: config.timezone,
+      repliesMonitored: Boolean(config.email?.replyTo),
+    });
+    res.type('html').send(html);
   });
 
   router.post('/jobs', async (req, res) => {

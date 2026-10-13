@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createApp } from '../server/app';
 import { loadConfig, type AppConfig } from '../server/config';
 import type { AppContext } from '../server/context';
+import type { EmailTransport } from '../server/email';
 import { createFormToken } from '../server/form-token';
 import { ALL_TABLES } from '../server/schema';
 import type { Storage } from '../server/storage';
@@ -40,6 +41,8 @@ export interface TestAppOptions {
   /** Wrap the backends, for example to inject failures. */
   wrapSheet?: (backend: SheetBackend) => SheetBackend;
   wrapDrive?: (backend: DriveBackend) => DriveBackend;
+  /** Stands in for Resend. Emails are only sent when the email settings are also in `env`. */
+  emailTransport?: EmailTransport;
 }
 
 export async function startTestApp(options: TestAppOptions = {}): Promise<TestApp> {
@@ -66,7 +69,7 @@ export async function startTestApp(options: TestAppOptions = {}): Promise<TestAp
     rootFolderId: LOCAL_ROOT_FOLDER_ID,
   };
 
-  const { app, ctx } = await createApp({ config, storage, client: 'none' });
+  const { app, ctx } = await createApp({ config, storage, client: 'none', emailTransport: options.emailTransport });
   const server = await new Promise<import('node:http').Server>((resolve) => {
     const s = app.listen(0, '127.0.0.1', () => resolve(s));
   });

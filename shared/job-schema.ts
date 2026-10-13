@@ -7,6 +7,18 @@ import { cleanLine, cleanText, type FieldErrors } from './validation';
 const line = (max: number) => z.string().transform(cleanLine).pipe(z.string().max(max, `Keep this under ${max} characters.`));
 const text = (max: number) => z.string().transform(cleanText).pipe(z.string().max(max, `Keep this under ${max} characters.`));
 
+/**
+ * Splits what was typed in the Options box into separate options. One per line is the norm;
+ * a single line such as "Full-time, Part-time, Either" is read as a comma-separated list,
+ * since one line can never be a valid dropdown on its own. A comma left at the end of a line
+ * ("Full-time,") is dropped rather than shown to candidates.
+ */
+export function parseOptionsText(optionsText: string): string[] {
+  const lines = optionsText.split('\n').filter((option) => option.trim());
+  const options = lines.length === 1 ? lines[0].split(',') : lines;
+  return options.map((option) => option.replace(/[,\s]+$/, ''));
+}
+
 export const questionSchema = z
   .object({
     id: z.string().optional(),

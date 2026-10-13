@@ -37,14 +37,51 @@
       font-size: 0.875rem;
     }
   }
+  /* Anything clickable shows the hand cursor (browsers and Tailwind no longer do this by default). */
+  button:not(:disabled),
+  [role='tab'],
+  [role='menuitem']:not(:disabled),
+  select:not(:disabled),
+  label[for],
+  input[type='checkbox'],
+  input[type='radio'],
+  summary {
+    cursor: pointer;
+  }
+  /* Dropdowns draw their own arrow, set in from the edge. Browsers put theirs hard against the border. */
+  select:not([multiple]) {
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: var(
+      --select-arrow,
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2364748b' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 7.75 10 12.25l4.5-4.5'/%3E%3C/svg%3E")
+    );
+    background-repeat: no-repeat;
+    background-position: right var(--select-arrow-inset, 0.75rem) center;
+    background-size: 1.125rem 1.125rem;
+  }
   :focus-visible {
     outline: 2px solid var(--color-brand-500);
     outline-offset: 2px;
   }
-  input:focus-visible,
+  /* Fields get a soft glow instead of a hard outline when you click into them. */
+  input:not([type='checkbox']):not([type='radio']):focus-visible,
   select:focus-visible,
   textarea:focus-visible {
-    outline-offset: 0;
+    outline: none;
     border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-brand-500) 16%, transparent);
   }
+  input,
+  select,
+  textarea {
+    transition:
+      border-color 150ms,
+      box-shadow 150ms;
+  }
+}
+
+/* For dropdowns on a dark background. */
+@utility select-arrow-light {
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23ffffff' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 7.75 10 12.25l4.5-4.5'/%3E%3C/svg%3E");
 }

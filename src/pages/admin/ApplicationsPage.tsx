@@ -227,7 +227,7 @@ export function ApplicationsPage() {
     }
   };
 
-  const selectClass = cx(inputClass(), 'pr-8');
+  const selectClass = cx(inputClass(), 'pr-10');
   const total = data?.total ?? 0;
   const firstRow = data && total > 0 ? (data.page - 1) * data.pageSize + 1 : 0;
   const lastRow = data ? Math.min(data.page * data.pageSize, total) : 0;
@@ -493,7 +493,7 @@ export function ApplicationsPage() {
                           {/* A status pill that is also the control for changing it. */}
                           <select
                             aria-label={`Status of ${app.fullName}`}
-                            className={cx('h-7 cursor-pointer rounded-full border-0 py-0 pr-7 pl-2.5 text-xs font-medium ring-1 ring-inset', statusTone(app.status))}
+                            className={cx('h-7 cursor-pointer rounded-full border-0 py-0 pr-7 pl-2.5 text-xs font-medium ring-1 ring-inset [--select-arrow-inset:0.4rem]', statusTone(app.status))}
                             value={knownStatus ? app.status : ''}
                             onChange={(e) => changeStatus(app, e.target.value as ApplicationStatus)}
                           >
@@ -573,7 +573,7 @@ export function ApplicationsPage() {
             </Button>
             <select
               aria-label="Move selected candidates to another status"
-              className="h-8 rounded-lg border-0 bg-white/10 py-0 pr-8 pl-2.5 text-[13px] font-medium text-white"
+              className="select-arrow-light h-8 rounded-lg border-0 bg-white/10 py-0 pr-9 pl-2.5 text-[13px] font-medium text-white"
               value=""
               onChange={(e) => e.target.value && applyBulkStatus(e.target.value as ApplicationStatus)}
             >

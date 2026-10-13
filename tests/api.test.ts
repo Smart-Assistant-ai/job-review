@@ -69,6 +69,7 @@ describe('admin authentication', () => {
       ['POST', '/api/admin/jobs'],
       ['PUT', '/api/admin/jobs/abcdefghij'],
       ['POST', '/api/admin/jobs/abcdefghij/status'],
+      ['GET', '/api/admin/jobs/abcdefghij/email-preview'],
       ['GET', '/api/admin/applications'],
       ['GET', '/api/admin/applications/APP-ABCDEFGHJK'],
       ['PATCH', '/api/admin/applications/APP-ABCDEFGHJK'],

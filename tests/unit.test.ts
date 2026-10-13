@@ -11,7 +11,7 @@ import { StorageError } from '../server/storage/types';
 import { buildResumeFilename, safeName, validateResume } from '../server/resume-file';
 import { devProxyTarget, normalizeBasePath, resolveApiRoot } from '../shared/api-root';
 import { EXPERIENCE_RANGES, type Question } from '../shared/constants';
-import { jobInputSchema } from '../shared/job-schema';
+import { jobInputSchema, parseOptionsText } from '../shared/job-schema';
 import {
   normalizeLinkedinUrl,
   parseAmount,
@@ -212,6 +212,19 @@ describe('job validation', () => {
     expect(jobInputSchema.safeParse({ ...base, questions: [q(['A', 'A', ' '])] }).success).toBe(false);
     const ok = jobInputSchema.safeParse({ ...base, questions: [q(['A', 'B', 'A'])] });
     expect(ok.success && ok.data.questions[0].options).toEqual(['A', 'B']);
+  });
+
+  it('reads dropdown options typed one per line or as a single comma-separated line', () => {
+    expect(parseOptionsText('Full-time\nPart-time\n\nEither\n')).toEqual(['Full-time', 'Part-time', 'Either']);
+    expect(parseOptionsText('Full-time, Part-time, Either')).toEqual(['Full-time', ' Part-time', ' Either']);
+    // Commas inside options survive once there is more than one line; trailing ones do not.
+    expect(parseOptionsText('Yes, immediately\nNo, after notice')).toEqual(['Yes, immediately', 'No, after notice']);
+    expect(parseOptionsText('Full-time,\nPart-time, \nEither')).toEqual(['Full-time', 'Part-time', 'Either']);
+    const saved = jobInputSchema.safeParse({
+      ...base,
+      questions: [{ label: 'Notice period?', type: 'select', required: true, options: parseOptionsText('Immediate, 15 days, 30 days') }],
+    });
+    expect(saved.success && saved.data.questions[0].options).toEqual(['Immediate', '15 days', '30 days']);
   });
 
   it('caps the number of questions', () => {

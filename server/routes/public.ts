@@ -1,7 +1,7 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
-import type { PublicJobListItem, PublicJobResponse } from '../../shared/types';
+import type { PublicJobListItem, PublicJobResponse, SubmitApplicationResponse } from '../../shared/types';
 import {
   cleanLine,
   formatFileSize,
@@ -32,7 +32,7 @@ function parseAnswers(raw: unknown): Record<string, string> {
 }
 
 export function publicRouter(ctx: AppContext): Router {
-  const { config, jobs, applications } = ctx;
+  const { config, jobs, applications, emails } = ctx;
   const router = Router();
 
   router.get('/site', (_req, res) => {
@@ -124,7 +124,8 @@ export function publicRouter(ctx: AppContext): Router {
     // Hidden field that people never see or fill. Bots that fill every input
     // get a normal-looking success and nothing is stored.
     if (cleanLine(field('website')) !== '') {
-      res.status(201).json({ applicationId: newApplicationId() });
+      const body: SubmitApplicationResponse = { applicationId: newApplicationId(), confirmationEmail: emails !== null };
+      res.status(201).json(body);
       return;
     }
 
@@ -174,8 +175,10 @@ export function publicRouter(ctx: AppContext): Router {
       });
     }
 
-    const { id } = await applications.submit(job, validated.data, resume.resume);
-    res.status(201).json({ applicationId: id });
+    const { id, submittedAt } = await applications.submit(job, validated.data, resume.resume);
+    emails?.applicationReceived(job, { id, fullName: validated.data.fullName, email: validated.data.email, submittedAt });
+    const result: SubmitApplicationResponse = { applicationId: id, confirmationEmail: emails !== null };
+    res.status(201).json(result);
   });
 
   return router;

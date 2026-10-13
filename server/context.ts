@@ -3,6 +3,7 @@ import { ApplicationsService } from './applications';
 import { AdminAuth } from './auth';
 import type { AppConfig } from './config';
 import { DownloadTracker } from './downloads';
+import { createCandidateEmails, type CandidateEmails, type EmailTransport } from './email';
 import { JobsService } from './jobs';
 import type { Storage } from './storage';
 
@@ -14,9 +15,16 @@ export interface AppContext {
   applications: ApplicationsService;
   auth: AdminAuth;
   downloads: DownloadTracker;
+  /** Null when confirmation emails are not configured. */
+  emails: CandidateEmails | null;
 }
 
-export function createContext(config: AppConfig, storage: Storage): AppContext {
+export interface ContextOptions {
+  /** Stands in for the real email service in tests. */
+  emailTransport?: EmailTransport;
+}
+
+export function createContext(config: AppConfig, storage: Storage, options: ContextOptions = {}): AppContext {
   const jobs = new JobsService(storage);
   return {
     config,
@@ -25,6 +33,7 @@ export function createContext(config: AppConfig, storage: Storage): AppContext {
     applications: new ApplicationsService(storage, jobs, config.timezone),
     auth: new AdminAuth(config),
     downloads: new DownloadTracker(),
+    emails: createCandidateEmails(config, storage, options.emailTransport),
   };
 }
 

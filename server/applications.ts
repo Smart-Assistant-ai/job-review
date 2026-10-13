@@ -297,7 +297,7 @@ export class ApplicationsService {
    * The application row is the commit point. If it cannot be written, the
    * uploaded resume is moved to the trash so no half-finished record remains.
    */
-  submit(job: Job, data: ValidApplication, resume: ValidResume): Promise<{ id: string }> {
+  submit(job: Job, data: ValidApplication, resume: ValidResume): Promise<{ id: string; submittedAt: string }> {
     // Two submissions for the same job and email wait for each other, so a
     // double-click cannot slip past the duplicate check.
     return this.submitLocks.run(`${job.id}:${data.email}`, async () => {
@@ -373,11 +373,11 @@ export class ApplicationsService {
         // discard the resume when the record is confirmed absent: an orphaned
         // file is harmless, a record pointing at a discarded file is not.
         const saved = await isSaved().catch(() => null);
-        if (saved === true) return { id };
+        if (saved === true) return { id, submittedAt: now };
         if (saved === false) await this.storage.drive.trash(fileId).catch(() => undefined);
         throw err;
       }
-      return { id };
+      return { id, submittedAt: now };
     });
   }
 

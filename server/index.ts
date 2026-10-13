@@ -43,7 +43,7 @@ async function main(): Promise<void> {
   const clientDir = path.join(import.meta.dirname, 'client');
   const client = !config.isProduction ? 'vite' : existsSync(path.join(clientDir, 'index.html')) ? 'static' : 'none';
 
-  const { app } = await createApp({ config, storage, client, clientDir });
+  const { app, ctx } = await createApp({ config, storage, client, clientDir });
 
   const server = config.tls ? https.createServer(readTlsFiles(config.tls), app) : http.createServer(app);
 
@@ -63,6 +63,13 @@ async function main(): Promise<void> {
     }
     const loginProblem = adminPasswordProblem(config);
     if (loginProblem) console.warn(`[server] Admin sign-in is disabled: ${loginProblem}`);
+    if (config.email) {
+      console.log(`[server] Confirmation emails: sent through Resend from ${config.email.from}, batched every ${config.email.batchDelayMs / 1000}s`);
+    } else if (config.emailProblem) {
+      console.warn(`[server] WARNING: Confirmation emails are off: ${config.emailProblem}`);
+    } else {
+      console.log('[server] Confirmation emails: off (RESEND_API_KEY and EMAIL_FROM are not set)');
+    }
   });
 
   // Create missing worksheets/headers up front so configuration problems show in the logs at startup.
@@ -73,7 +80,12 @@ async function main(): Promise<void> {
 
   const shutdown = (signal: string) => {
     console.log(`[server] ${signal} received, shutting down.`);
-    server.close(() => process.exit(0));
+    // Confirmation emails still waiting for their batch go out now. Started first,
+    // because process managers only wait a second or two before killing the process.
+    const flushEmails = () => ctx.emails?.close().catch(() => undefined) ?? Promise.resolve();
+    void flushEmails();
+    // Once the last request has finished, send what those requests queued, then exit.
+    server.close(() => void flushEmails().then(() => process.exit(0)));
     // In-flight downloads get a short grace period.
     setTimeout(() => process.exit(0), 10_000).unref();
   };

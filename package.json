@@ -17,7 +17,8 @@
     "test": "vitest run",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "google:setup": "tsx scripts/google-setup.ts",
-    "google:check": "tsx scripts/google-check.ts"
+    "google:check": "tsx scripts/google-check.ts",
+    "email:test": "tsx scripts/email-test.ts"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",

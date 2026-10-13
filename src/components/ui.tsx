@@ -79,14 +79,17 @@ export function Spinner({ className }: { className?: string }) {
 // ---- Buttons ----
 
 const BUTTON_VARIANTS = {
-  primary: 'bg-brand-600 text-white shadow-sm hover:bg-brand-700 disabled:bg-brand-300 disabled:shadow-none',
-  secondary: 'border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50 disabled:text-slate-400 disabled:shadow-none',
-  ghost: 'text-slate-600 hover:bg-slate-100 disabled:text-slate-400',
-  danger: 'border border-rose-200 bg-white text-rose-700 shadow-sm hover:bg-rose-50 disabled:text-rose-300',
-  success: 'bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 disabled:bg-emerald-300',
-  successSoft: 'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
-  dangerSoft: 'border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100',
-  dark: 'bg-white/10 text-white hover:bg-white/20 disabled:text-white/40',
+  primary:
+    'bg-brand-600 text-white shadow-sm hover:bg-brand-700 hover:shadow-md active:bg-brand-800 disabled:bg-brand-300 disabled:shadow-none',
+  secondary:
+    'border border-slate-300 bg-white text-slate-700 shadow-sm hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100 disabled:border-slate-200 disabled:text-slate-400 disabled:shadow-none',
+  ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200 disabled:text-slate-400',
+  danger:
+    'border border-rose-200 bg-white text-rose-700 shadow-sm hover:border-rose-300 hover:bg-rose-50 active:bg-rose-100 disabled:text-rose-300',
+  success: 'bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 hover:shadow-md active:bg-emerald-800 disabled:bg-emerald-300',
+  successSoft: 'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-300 hover:bg-emerald-100 active:bg-emerald-200',
+  dangerSoft: 'border border-rose-200 bg-rose-50 text-rose-800 hover:border-rose-300 hover:bg-rose-100 active:bg-rose-200',
+  dark: 'bg-white/10 text-white hover:bg-white/20 active:bg-white/25 disabled:text-white/40',
 } as const;
 
 const BUTTON_SIZES = {
@@ -100,7 +103,8 @@ export const buttonClass = (
   size: keyof typeof BUTTON_SIZES = 'md',
 ) =>
   cx(
-    'inline-flex shrink-0 items-center justify-center rounded-lg font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed',
+    // One place for how every button feels: pointer cursor, colour change on hover, a slight press on click.
+    'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-lg font-medium whitespace-nowrap transition-all duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:active:scale-100',
     BUTTON_VARIANTS[variant],
     BUTTON_SIZES[size],
   );
@@ -153,7 +157,7 @@ export function IconButton({
       title={label}
       disabled={rest.disabled || busy}
       className={cx(
-        'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+        'inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-all duration-150 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100',
         tones[tone],
         className,
       )}
@@ -178,24 +182,27 @@ interface FieldProps {
   hint?: ReactNode;
   required?: boolean;
   className?: string;
+  /** Set for a group of controls (such as ChoiceGroup), which is named by the label rather than tied to it. */
+  group?: boolean;
   /** Receives the IDs to wire the control to its label, hint and error. */
   children: (control: { id: string; 'aria-invalid': boolean | undefined; 'aria-describedby': string | undefined }) => ReactNode;
 }
 
 /** A labelled control with its hint and its validation message directly underneath. */
-export function Field({ label, error, hint, required, className, children }: FieldProps) {
+export function Field({ label, error, hint, required, className, group, children }: FieldProps) {
   const id = useId();
   const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') || undefined;
+  const Label = group ? 'div' : 'label';
   return (
     <div className={className}>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-slate-700">
+      <Label id={`${id}-label`} htmlFor={group ? undefined : id} className="mb-1.5 block text-sm font-medium text-slate-700">
         {label}
         {required && (
           <span className="ml-0.5 text-rose-600" aria-hidden="true">
             *
           </span>
         )}
-      </label>
+      </Label>
       {children({ id, 'aria-invalid': error ? true : undefined, 'aria-describedby': describedBy })}
       {hint && !error && (
         <p id={`${id}-hint`} className="mt-1.5 text-xs text-slate-500">
@@ -222,9 +229,64 @@ export function TextArea({ className, ...rest }: TextareaHTMLAttributes<HTMLText
 
 export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select className={cx(inputClass(rest['aria-invalid'] === true), 'pr-8', className)} {...rest}>
+    <select
+      className={cx(
+        inputClass(rest['aria-invalid'] === true),
+        // While the empty first option is showing, it reads as a placeholder; the list itself stays dark.
+        'pr-10 text-ellipsis [&:has(option[value=""]:checked)]:text-slate-500 [&>option]:text-slate-900',
+        className,
+      )}
+      {...rest}
+    >
       {children}
     </select>
+  );
+}
+
+interface ChoiceGroupProps {
+  /** From Field: the group is named by the element with the ID `${id}-label`. */
+  id: string;
+  name: string;
+  options: readonly string[];
+  value: string;
+  onChange: (value: string) => void;
+  'aria-invalid'?: boolean;
+  'aria-describedby'?: string;
+}
+
+/** A few options shown side by side, chosen with one tap. Use inside a Field marked `group`. */
+export function ChoiceGroup({ id, name, options, value, onChange, 'aria-invalid': invalid, 'aria-describedby': describedBy }: ChoiceGroupProps) {
+  return (
+    <div id={id} role="radiogroup" aria-labelledby={`${id}-label`} aria-describedby={describedBy} aria-invalid={invalid} className="grid grid-cols-2 gap-3">
+      {options.map((option) => {
+        const checked = value === option;
+        return (
+          <label key={option} className="relative cursor-pointer">
+            <input type="radio" name={name} value={option} checked={checked} onChange={() => onChange(option)} className="peer sr-only" />
+            <span
+              className={cx(
+                'flex h-11 items-center gap-2.5 rounded-lg border px-3.5 text-[15px] shadow-sm transition-colors',
+                'peer-focus-visible:border-brand-500 peer-focus-visible:ring-4 peer-focus-visible:ring-brand-500/15',
+                checked
+                  ? 'border-brand-600 bg-brand-50 font-medium text-brand-900'
+                  : cx('bg-white text-slate-700 hover:bg-slate-50', invalid ? 'border-rose-400' : 'border-slate-300 hover:border-slate-400'),
+              )}
+            >
+              <span
+                className={cx(
+                  'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
+                  checked ? 'border-brand-600 bg-brand-600' : 'border-slate-400 bg-white',
+                )}
+                aria-hidden="true"
+              >
+                {checked && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+              </span>
+              {option}
+            </span>
+          </label>
+        );
+      })}
+    </div>
   );
 }
 

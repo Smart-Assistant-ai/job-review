@@ -1,12 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { LIMITS, QUESTION_TYPES, type JobStatus, type QuestionType } from '../../../shared/constants';
-import { jobInputSchema, zodFieldErrors } from '../../../shared/job-schema';
-import type { JobDto } from '../../../shared/types';
+import { jobInputSchema, parseOptionsText, zodFieldErrors } from '../../../shared/job-schema';
+import type { JobDetailResponse, JobDto } from '../../../shared/types';
 import type { FieldErrors } from '../../../shared/validation';
 import { CopyButton } from '../../components/CopyButton';
 import { Alert, Button, Card, Field, Icon, PageLoading, Select, StatusBadge, TextArea, TextInput } from '../../components/ui';
-import { api, ApiError } from '../../lib/api';
+import { api, ApiError, apiUrl } from '../../lib/api';
 import { useApi } from '../../lib/useApi';
 
 interface QuestionDraft {
@@ -16,7 +16,7 @@ interface QuestionDraft {
   label: string;
   type: QuestionType;
   required: boolean;
-  /** One option per line while editing. */
+  /** One option per line while editing; see parseOptionsText. */
   optionsText: string;
 }
 
@@ -60,7 +60,7 @@ function toPayload(draft: Draft) {
       label: q.label,
       type: q.type,
       required: q.required,
-      options: q.optionsText.split('\n'),
+      options: parseOptionsText(q.optionsText),
     })),
   };
 }
@@ -75,7 +75,8 @@ function JobForm({ jobId }: { jobId: string | undefined }) {
   const editing = jobId !== undefined;
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const loaded = useApi<{ job: JobDto; applyUrl: string }>(editing ? `/api/admin/jobs/${jobId}` : null);
+  const loaded = useApi<JobDetailResponse>(editing ? `/api/admin/jobs/${jobId}` : null);
+  const emailStatus = (loaded.data as Partial<JobDetailResponse> | undefined)?.confirmationEmail;
 
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -275,7 +276,7 @@ function JobForm({ jobId }: { jobId: string | undefined }) {
                     </Field>
                   </div>
                   {question.type === 'select' && (
-                    <Field className="mt-4" label="Options" required error={errors[`questions.${index}.options`]} hint="One option per line.">
+                    <Field className="mt-4" label="Options" required error={errors[`questions.${index}.options`]} hint="One option per line, or separate them with commas.">
                       {(control) => <TextArea {...control} rows={3} value={question.optionsText} onChange={(e) => changeQuestion(question.key, { optionsText: e.target.value })} />}
                     </Field>
                   )}
@@ -362,6 +363,27 @@ function JobForm({ jobId }: { jobId: string | undefined }) {
                 </Link>
               </div>
             </Card>
+            {/* The site and the backend are deployed separately: an older backend does not report this yet. */}
+            {emailStatus && (
+              <Card className="p-5">
+                <h2 className="text-sm font-semibold text-slate-900">Confirmation email</h2>
+                <p className="mt-2 text-sm text-slate-600">
+                  {emailStatus.on
+                    ? 'On: candidates get an email as soon as they apply.'
+                    : emailStatus.problem
+                      ? `Off: ${emailStatus.problem}`
+                      : 'Off: candidates are not emailed after applying.'}
+                </p>
+                <a
+                  href={apiUrl(`/api/admin/jobs/${job.id}/email-preview`)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 -ml-2.5 inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+                >
+                  <Icon name="external" /> Preview the email
+                </a>
+              </Card>
+            )}
           </aside>
         )}
       </div>

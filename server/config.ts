@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { CURRENCIES, type Currency } from '../shared/constants';
+import { isValidEmail } from '../shared/validation';
 
 /**
  * How the server signs in to Google. Both kinds of credential stay on the
@@ -31,6 +32,17 @@ export interface GoogleConfig {
   auth: GoogleAuthConfig;
   rootFolderId: string;
   sheetId: string;
+}
+
+/** Confirmation emails to candidates, sent through Resend. The API key stays on the server. */
+export interface EmailConfig {
+  resendApiKey: string;
+  /** Sender, e.g. "Acme Careers <careers@example.com>". Its domain must be verified in Resend. */
+  from: string;
+  /** Where replies go. Without it, the email says it is automated and asks candidates not to reply. */
+  replyTo: string | null;
+  /** How long emails are collected before they go out together in one batch call. */
+  batchDelayMs: number;
 }
 
 export interface AppConfig {
@@ -67,6 +79,10 @@ export interface AppConfig {
   timezone: string;
   submissionsPerIpPerHour: number;
   loginAttemptsPer15Min: number;
+  /** Null when confirmation emails are off: candidates are not emailed. */
+  email: EmailConfig | null;
+  /** Why confirmation emails are off although some email settings are present. */
+  emailProblem: string | null;
 }
 
 export const MIN_ADMIN_PASSWORD_LENGTH = 12;
@@ -80,6 +96,13 @@ export class ConfigError extends Error {
 }
 
 type Env = Record<string, string | undefined>;
+
+/** The address inside a sender such as "Acme Careers <careers@example.com>", or null if there is none. */
+function senderAddress(from: string): string | null {
+  const named = /^[^<>]*<([^<>]+)>$/.exec(from);
+  const address = (named ? named[1] : from).trim();
+  return isValidEmail(address) ? address : null;
+}
 
 /** Reads and validates configuration from environment variables. */
 export function loadConfig(source: Env = process.env): AppConfig {
@@ -212,6 +235,21 @@ export function loadConfig(source: Env = process.env): AppConfig {
     throw new ConfigError('TRUST_PROXY must be the number of reverse proxies in front of the app (0, 1, 2...).');
   }
 
+  // A mistake in the email settings turns confirmation emails off; it must not stop applications.
+  const resendApiKey = env('RESEND_API_KEY');
+  const emailFrom = env('EMAIL_FROM');
+  const emailReplyTo = env('EMAIL_REPLY_TO');
+  const batchDelayMs = Math.round(positiveNumber('EMAIL_BATCH_SECONDS', 10) * 1000);
+  let email: EmailConfig | null = null;
+  let emailProblem: string | null = null;
+  if (resendApiKey || emailFrom) {
+    if (!resendApiKey) emailProblem = 'RESEND_API_KEY is not set.';
+    else if (!emailFrom) emailProblem = 'EMAIL_FROM is not set.';
+    else if (!senderAddress(emailFrom)) emailProblem = 'EMAIL_FROM must look like "Company Careers <careers@example.com>".';
+    else if (emailReplyTo && !isValidEmail(emailReplyTo)) emailProblem = 'EMAIL_REPLY_TO must be a single email address.';
+    else email = { resendApiKey, from: emailFrom, replyTo: emailReplyTo ?? null, batchDelayMs };
+  }
+
   return {
     port: Math.round(positiveNumber('PORT', 3000)),
     host: env('HOST') ?? '0.0.0.0',
@@ -242,6 +280,8 @@ export function loadConfig(source: Env = process.env): AppConfig {
     timezone,
     submissionsPerIpPerHour: Math.round(positiveNumber('SUBMISSIONS_PER_IP_PER_HOUR', 10)),
     loginAttemptsPer15Min: Math.round(positiveNumber('LOGIN_ATTEMPTS_PER_15_MIN', 10)),
+    email,
+    emailProblem,
   };
 }
 
